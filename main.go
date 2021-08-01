@@ -35,7 +35,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(
 		&rootOpts.verbosity,
 		"verbosity", "v",
-		logrus.WarnLevel.String(),
+		logrus.InfoLevel.String(),
 		"Log level (debug, info, warn, error, fatal, panic)",
 	)
 	rootCmd.RegisterFlagCompletionFunc(

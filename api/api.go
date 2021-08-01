@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/sudo-bmitch/reproducible-proxy/config"
@@ -25,7 +24,7 @@ func Start(c config.Config, b backing.Backing) *http.Server {
 	go func() {
 		err := server.ListenAndServe()
 		if err != nil {
-			log.Fatal("ListenAndServe:", err)
+			a.c.Log.Fatal("ListenAndServe:", err)
 		}
 	}()
 

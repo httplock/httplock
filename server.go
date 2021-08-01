@@ -48,6 +48,7 @@ func runServer(cmd *cobra.Command, args []string) error {
 		AddrAPI:   serverOpts.addrAPI,
 		AddrProxy: serverOpts.addrProxy,
 		ConfFile:  rootOpts.confFile,
+		Log:       log,
 	})
 
 	// create backend storage object

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 
@@ -82,7 +81,6 @@ func storageGenFilename(req *http.Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	log.Printf("GenFilename: name %s, content %s", h, j)
 	return h, nil
 }
 

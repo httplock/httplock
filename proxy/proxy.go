@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -14,24 +13,25 @@ import (
 
 // Start creates a new proxy service
 func Start(c config.Config, backing backing.Backing) *http.Server {
-	handler := &proxy{
+	p := &proxy{
+		c:       c,
 		backing: backing,
 	}
-	dr, err := storage.DirNew(handler.backing)
+	dr, err := storage.DirNew(p.backing)
 	if err != nil {
-		log.Fatal("defaultRoot:", err) // TODO: non-fatal?
+		p.c.Log.Fatal("defaultRoot:", err) // TODO: non-fatal?
 	}
-	handler.defaultRoot = dr
+	p.defaultRoot = dr
 	server := http.Server{
-		Handler: handler,
+		Handler: p,
 		Addr:    c.Proxy.Addr,
 	}
 
-	log.Println("Starting proxy server on", c.Proxy.Addr)
+	p.c.Log.Println("Starting proxy server on", c.Proxy.Addr)
 	go func() {
 		err := server.ListenAndServe()
 		if err != nil {
-			log.Fatal("ListenAndServe:", err) // TODO: non-fatal?
+			p.c.Log.Fatal("ListenAndServe:", err) // TODO: non-fatal?
 		}
 	}()
 
@@ -76,17 +76,18 @@ func appendHostToXForwardHeader(header http.Header, host string) {
 }
 
 type proxy struct {
+	c           config.Config
 	backing     backing.Backing
 	defaultRoot *storage.Dir
 }
 
 func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
-	log.Println(req.RemoteAddr, " ", req.Method, " ", req.URL)
+	p.c.Log.Println(req.RemoteAddr, " ", req.Method, " ", req.URL)
 
 	if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
 		msg := "unsupported protocal scheme " + req.URL.Scheme
 		http.Error(wr, msg, http.StatusBadRequest)
-		log.Println(msg)
+		p.c.Log.Println(msg)
 		return
 	}
 
@@ -106,26 +107,26 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 	// check if content is in cache
 	resp, err := storageGetResp(req, root)
 	if err == nil {
-		log.Println("Cache hit")
+		p.c.Log.Println("Cache hit")
 	}
 	if err != nil {
-		log.Printf("Cache miss: %v", err)
+		p.c.Log.Printf("Cache miss: %v", err)
 		client := &http.Client{}
 
 		resp, err = client.Do(req)
 		if err != nil {
 			http.Error(wr, "Server Error", http.StatusInternalServerError)
-			log.Fatal("ServeHTTP:", err) // TODO: non-fatal
+			p.c.Log.Fatal("ServeHTTP:", err) // TODO: non-fatal
 		}
 		// store result in cache
 		err = storagePutResp(req, resp, root)
 		if err != nil {
-			log.Printf("Error on storagePutResp: %v\n", err)
+			p.c.Log.Printf("Error on storagePutResp: %v\n", err)
 		}
 	}
 	defer resp.Body.Close()
 
-	log.Println(req.RemoteAddr, " ", resp.Status)
+	p.c.Log.Println(req.RemoteAddr, " ", resp.Status)
 
 	delHopHeaders(resp.Header)
 

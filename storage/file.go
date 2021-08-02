@@ -60,8 +60,8 @@ func (f *File) Read() (io.ReadCloser, error) {
 
 func (f *File) Write() (io.WriteCloser, error) {
 	// write to a temp file
-	uuid := fmt.Sprintf("temp-%s", uuid.New().String())
-	f.temp = uuid
+	u := fmt.Sprintf("temp-%s", uuid.New().String())
+	f.temp = u
 	bw, err := f.backing.Write(f.temp)
 	if err != nil {
 		return nil, err

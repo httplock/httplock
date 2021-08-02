@@ -43,7 +43,7 @@ func TestStorage(t *testing.T) {
 	root, _ := storage.DirNew(backing)
 
 	t.Run("GetMissing", func(t *testing.T) {
-		getResp, err := storageGetResp(&req, root)
+		getResp, err := storageGetResp(&req, root, backing)
 		if err == nil {
 			t.Errorf("Get a missing value unexpected succeeded: %v", getResp)
 			return
@@ -52,7 +52,7 @@ func TestStorage(t *testing.T) {
 	})
 
 	t.Run("PutResponse", func(t *testing.T) {
-		err := storagePutResp(&req, &resp, root)
+		err := storagePutResp(&req, &resp, root, backing)
 		if err != nil {
 			t.Errorf("Failed to put response in cache: %v", err)
 		}
@@ -62,7 +62,7 @@ func TestStorage(t *testing.T) {
 	})
 
 	t.Run("GetResponse", func(t *testing.T) {
-		getResp, err := storageGetResp(&req, root)
+		getResp, err := storageGetResp(&req, root, backing)
 		if err != nil {
 			t.Errorf("Failed to retrieve response: %v", err)
 			return

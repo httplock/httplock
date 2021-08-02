@@ -10,7 +10,7 @@ import (
 	"github.com/sudo-bmitch/reproducible-proxy/api"
 	"github.com/sudo-bmitch/reproducible-proxy/config"
 	"github.com/sudo-bmitch/reproducible-proxy/proxy"
-	"github.com/sudo-bmitch/reproducible-proxy/storage/backing"
+	"github.com/sudo-bmitch/reproducible-proxy/storage"
 )
 
 var serverOpts struct {
@@ -51,14 +51,23 @@ func runServer(cmd *cobra.Command, args []string) error {
 		Log:       log,
 	})
 
-	// create backend storage object
-	b := backing.Get(conf.Storage.Backing)
+	// create storage object
+	s, err := storage.New(conf)
+	if err != nil {
+		return err
+	}
 
 	// launch proxy in goroutine
-	proxySvc := proxy.Start(conf, b)
+	proxySvc, err := proxy.Start(conf, s)
+	if err != nil {
+		return err
+	}
 
 	// launch api service
-	apiSvc := api.Start(conf, b)
+	apiSvc, err := api.Start(conf, s)
+	if err != nil {
+		return err
+	}
 
 	// monitor signals to handle shutdown
 	sig := make(chan os.Signal, 1)

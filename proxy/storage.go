@@ -9,6 +9,7 @@ import (
 
 	"github.com/sudo-bmitch/reproducible-proxy/hasher"
 	"github.com/sudo-bmitch/reproducible-proxy/storage"
+	"github.com/sudo-bmitch/reproducible-proxy/storage/backing"
 )
 
 // TODO: add headers that should not be used in cache calculations
@@ -17,13 +18,13 @@ var excludeHeaders = []string{
 }
 
 type storageMetaReq struct {
-	Proto   string
-	Method  string
-	User    string
-	Query   string
-	Headers http.Header
-	CL      int64
-	Body    []byte // should this be a hash instead of raw content?
+	Proto    string
+	Method   string
+	User     string
+	Query    string
+	Headers  http.Header
+	CL       int64
+	BodyHash string
 }
 
 type storageMetaResp struct {
@@ -54,7 +55,7 @@ func storageGenDirPath(req *http.Request) ([]string, error) {
 	return pathEls, nil
 }
 
-func storageGenFilename(req *http.Request) (string, error) {
+func storageGenFilename(req *http.Request, b backing.Backing) (string, error) {
 	// returned path consists of:
 	// request hash: method (get/head/post/put), query args, filtered headers
 	hashItems := storageMetaReq{
@@ -66,7 +67,18 @@ func storageGenFilename(req *http.Request) (string, error) {
 		CL:      req.ContentLength,
 	}
 
-	// TODO: Request body, or a hash of that body, is needed
+	// get hash of request body
+	if hrc, ok := req.Body.(*hashReadCloser); ok && hrc != nil {
+		hashItems.BodyHash = hrc.h
+	} else {
+		hrc, err := newHashRC(req.Body, b)
+		if err != nil {
+			return "", err
+		}
+		hashItems.BodyHash = hrc.h
+		req.Body = hrc
+		req.GetBody = nil
+	}
 
 	for k := range req.Header {
 		if includeHeader(k) {
@@ -85,7 +97,7 @@ func storageGenFilename(req *http.Request) (string, error) {
 }
 
 // read the CF if it exists
-func storageGetResp(req *http.Request, root *storage.Dir) (*http.Response, error) {
+func storageGetResp(req *http.Request, root *storage.Dir, b backing.Backing) (*http.Response, error) {
 	dirElems, err := storageGenDirPath(req)
 	if err != nil {
 		return nil, err
@@ -98,9 +110,7 @@ func storageGetResp(req *http.Request, root *storage.Dir) (*http.Response, error
 		}
 		curDir = nextDir
 	}
-	// TODO: replace req.Body request with a buffered reader or similar, my reader can also just return the hash
-	// TODO: defer reseting the reader if it's not closed so any error reverts the reader to a useable state
-	fileName, err := storageGenFilename(req)
+	fileName, err := storageGenFilename(req, b)
 	if err != nil {
 		return nil, err
 	}
@@ -155,12 +165,12 @@ func storageGetResp(req *http.Request, root *storage.Dir) (*http.Response, error
 
 // write a CF based on the response
 // request and response body will be read, these should be replaced with tee readers to process the data elsewhere
-func storagePutResp(req *http.Request, resp *http.Response, root *storage.Dir) error {
+func storagePutResp(req *http.Request, resp *http.Response, root *storage.Dir, b backing.Backing) error {
 	dirElems, err := storageGenDirPath(req)
 	if err != nil {
 		return err
 	}
-	fileName, err := storageGenFilename(req)
+	fileName, err := storageGenFilename(req, b)
 	if err != nil {
 		return err
 	}
@@ -195,7 +205,12 @@ func storagePutResp(req *http.Request, resp *http.Response, root *storage.Dir) e
 		Headers: req.Header,
 		CL:      req.ContentLength,
 	}
-	// TODO: include request body (hash?)
+	// include request body hash
+	if hbr, ok := req.Body.(*hashReadCloser); ok && hbr != nil {
+		metaReq.BodyHash = hbr.h
+	} else {
+		return fmt.Errorf("Body reader is not a hashReadCloser")
+	}
 	mrj, err := json.Marshal(metaReq)
 	if err != nil {
 		return err

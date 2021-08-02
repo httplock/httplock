@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"encoding/base64"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -8,22 +10,27 @@ import (
 
 	"github.com/sudo-bmitch/reproducible-proxy/config"
 	"github.com/sudo-bmitch/reproducible-proxy/storage"
-	"github.com/sudo-bmitch/reproducible-proxy/storage/backing"
 )
 
+type proxy struct {
+	c           config.Config
+	s           *storage.Storage
+	defaultRoot *storage.Dir // TODO: get rid of this?
+}
+
 // Start creates a new proxy service
-func Start(c config.Config, backing backing.Backing) *http.Server {
-	p := &proxy{
-		c:       c,
-		backing: backing,
+func Start(c config.Config, s *storage.Storage) (*http.Server, error) {
+	p := proxy{
+		c: c,
+		s: s,
 	}
-	dr, err := storage.DirNew(p.backing)
+	_, dr, err := s.NewRoot()
 	if err != nil {
-		p.c.Log.Fatal("defaultRoot:", err) // TODO: non-fatal?
+		return nil, fmt.Errorf("Failed to create default root: %w", err)
 	}
 	p.defaultRoot = dr
 	server := http.Server{
-		Handler: p,
+		Handler: &p,
 		Addr:    c.Proxy.Addr,
 	}
 
@@ -35,7 +42,7 @@ func Start(c config.Config, backing backing.Backing) *http.Server {
 		}
 	}()
 
-	return &server
+	return &server, nil
 }
 
 // Hop-by-hop headers. These are removed when sent to the backend.
@@ -75,19 +82,61 @@ func appendHostToXForwardHeader(header http.Header, host string) {
 	header.Set("X-Forwarded-For", host)
 }
 
-type proxy struct {
-	c           config.Config
-	backing     backing.Backing
-	defaultRoot *storage.Dir
+func checkAuthBasic(auth string) (string, string, error) {
+	authParts := strings.Split(auth, " ")
+	if len(authParts) != 2 || authParts[0] != "Basic" {
+		return "", "", fmt.Errorf("Basic auth header not found")
+	}
+	userpassRaw, err := base64.StdEncoding.DecodeString(authParts[1])
+	if err != nil {
+		return "", "", err
+	}
+	userpass := strings.SplitN(string(userpassRaw), ":", 2)
+	if len(userpass) != 2 {
+		return "", "", fmt.Errorf("Basic user/pass missing")
+	}
+	return userpass[0], userpass[1], nil
 }
 
-func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
+func requireAuthBasic(w http.ResponseWriter) {
+	w.Header().Add("Proxy-Authenticate", "Basic")
+	w.Header().Add("Proxy-Connection", "close")
+	w.WriteHeader(http.StatusProxyAuthRequired)
+	return
+}
+
+func (p *proxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	p.c.Log.Println(req.RemoteAddr, " ", req.Method, " ", req.URL)
 
 	if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
 		msg := "unsupported protocal scheme " + req.URL.Scheme
-		http.Error(wr, msg, http.StatusBadRequest)
+		http.Error(w, msg, http.StatusBadRequest)
 		p.c.Log.Println(msg)
+		return
+	}
+
+	// use proxy auth to get the correct token
+	auth := req.Header.Get("Proxy-Authorization")
+	if auth == "" {
+		p.c.Log.Println("No proxy header found")
+		requireAuthBasic(w)
+		return
+	}
+	user, pass, err := checkAuthBasic(auth)
+	if err != nil {
+		p.c.Log.Printf("Check basic auth failed on \"%s\": %v\n", auth, err)
+		requireAuthBasic(w)
+		return
+	}
+	if user != "token" {
+		p.c.Log.Printf("Auth user is not token: %s\n", user)
+		requireAuthBasic(w)
+		return
+	}
+	root, err := p.s.GetRoot(pass)
+	if err != nil {
+		p.c.Log.Printf("Get root failed on \"%s\": %v\n", pass, err)
+		requireAuthBasic(w)
 		return
 	}
 
@@ -101,11 +150,8 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 		appendHostToXForwardHeader(req.Header, clientIP)
 	}
 
-	// TODO: get the current root pointer based on proxy login (uuid/hash)
-	root := p.defaultRoot
-
 	// check if content is in cache
-	resp, err := storageGetResp(req, root)
+	resp, err := storageGetResp(req, root, p.s.Backing)
 	if err == nil {
 		p.c.Log.Println("Cache hit")
 	}
@@ -115,11 +161,11 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 
 		resp, err = client.Do(req)
 		if err != nil {
-			http.Error(wr, "Server Error", http.StatusInternalServerError)
+			http.Error(w, "Server Error", http.StatusInternalServerError)
 			p.c.Log.Fatal("ServeHTTP:", err) // TODO: non-fatal
 		}
 		// store result in cache
-		err = storagePutResp(req, resp, root)
+		err = storagePutResp(req, resp, root, p.s.Backing)
 		if err != nil {
 			p.c.Log.Printf("Error on storagePutResp: %v\n", err)
 		}
@@ -130,8 +176,8 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 
 	delHopHeaders(resp.Header)
 
-	copyHeader(wr.Header(), resp.Header)
-	wr.WriteHeader(resp.StatusCode)
-	io.Copy(wr, resp.Body)
+	copyHeader(w.Header(), resp.Header)
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 	resp.Body.Close()
 }

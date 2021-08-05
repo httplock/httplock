@@ -6,11 +6,14 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/sudo-bmitch/reproducible-proxy/config"
 	"github.com/sudo-bmitch/reproducible-proxy/storage/backing"
 )
 
 func TestStorage(t *testing.T) {
-	mb := backing.Get("memory")
+	c := config.Config{}
+	c.Storage.Backing = "memory"
+	mb := backing.Get(c)
 	if mb == nil {
 		t.Error("Failed to create the default backing")
 		return

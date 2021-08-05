@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/sudo-bmitch/reproducible-proxy/config"
 	"github.com/sudo-bmitch/reproducible-proxy/storage"
 	"github.com/sudo-bmitch/reproducible-proxy/storage/backing"
 )
@@ -39,7 +40,9 @@ func TestStorage(t *testing.T) {
 	resp.Body = ioutil.NopCloser(respBodyRdr)
 	resp.ContentLength = int64(len(respBodyText))
 
-	backing := backing.Get("memory")
+	c := config.Config{}
+	c.Storage.Backing = "memory"
+	backing := backing.Get(c)
 	root, _ := storage.DirNew(backing)
 
 	t.Run("GetMissing", func(t *testing.T) {

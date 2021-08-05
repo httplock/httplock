@@ -14,7 +14,10 @@ type Config struct {
 		Addr string
 	}
 	Storage struct {
-		Backing string
+		Backing    string
+		Filesystem struct {
+			Directory string
+		}
 	}
 	Log *logrus.Logger `json:"-"`
 }

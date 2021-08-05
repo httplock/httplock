@@ -14,7 +14,7 @@ type Storage struct {
 }
 
 func New(c config.Config) (*Storage, error) {
-	b := backing.Get(c.Storage.Backing)
+	b := backing.Get(c)
 	if b == nil {
 		return nil, fmt.Errorf("Backing not found: %s", c.Storage.Backing)
 	}

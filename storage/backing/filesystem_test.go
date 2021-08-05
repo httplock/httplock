@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/sudo-bmitch/reproducible-proxy/config"
 )
 
-func TestMemory(t *testing.T) {
-	var testMem = []struct {
+func TestFilesystem(t *testing.T) {
+	var testCases = []struct {
 		name  string
 		input []byte
 		hash  string
@@ -27,37 +28,45 @@ func TestMemory(t *testing.T) {
 		},
 	}
 
-	c := config.Config{}
-	c.Storage.Backing = "memory"
-	m := Get(c)
+	tempDir, err := ioutil.TempDir("", "gotest-")
+	if err != nil {
+		t.Errorf("TempDir creation error: %v", err)
+		return
+	}
+	defer os.RemoveAll(tempDir)
 
-	for _, tt := range testMem {
+	c := config.Config{}
+	c.Storage.Backing = "filesystem"
+	c.Storage.Filesystem.Directory = tempDir
+	fBacking := Get(c)
+
+	for _, tt := range testCases {
 		t.Run(fmt.Sprintf("write-%s", tt.name), func(t *testing.T) {
-			mw, err := m.Write(tt.hash)
+			fw, err := fBacking.Write(tt.hash)
 			if err != nil {
-				t.Errorf("Memory write error: %v", err)
+				t.Errorf("File backing write error: %v", err)
 			}
-			n, err := mw.Write(tt.input)
+			n, err := fw.Write(tt.input)
 			if err != nil {
 				t.Errorf("File write error: %v", err)
 			}
 			if n != len(tt.input) {
 				t.Errorf("Write length: got %d, expected %d", n, len(tt.input))
 			}
-			err = mw.Close()
+			err = fw.Close()
 			if err != nil {
 				t.Errorf("File close error: %v", err)
 			}
 		})
 	}
 
-	for _, tt := range testMem {
+	for _, tt := range testCases {
 		t.Run(fmt.Sprintf("read-%s", tt.name), func(t *testing.T) {
-			mr, err := m.Read(tt.hash)
+			fr, err := fBacking.Read(tt.hash)
 			if err != nil {
-				t.Errorf("Memory read error: %v", err)
+				t.Errorf("File backing read error: %v", err)
 			}
-			mrb, err := ioutil.ReadAll(mr)
+			mrb, err := ioutil.ReadAll(fr)
 			if err != nil {
 				t.Errorf("File read error: %v", err)
 			}

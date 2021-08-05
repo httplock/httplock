@@ -1,6 +1,10 @@
 package backing
 
-import "io"
+import (
+	"io"
+
+	"github.com/sudo-bmitch/reproducible-proxy/config"
+)
 
 type Backing interface {
 	Read(name string) (io.ReadCloser, error)
@@ -9,15 +13,15 @@ type Backing interface {
 	Delete(name string) error
 }
 
-var registered = map[string]func() Backing{}
+var registered = map[string]func(config.Config) Backing{}
 
-func Register(name string, s func() Backing) {
+func Register(name string, s func(config.Config) Backing) {
 	registered[name] = s
 }
 
-func Get(name string) Backing {
-	if fn, ok := registered[name]; ok {
-		return fn()
+func Get(c config.Config) Backing {
+	if fn, ok := registered[c.Storage.Backing]; ok {
+		return fn(c)
 	}
 	return nil
 }

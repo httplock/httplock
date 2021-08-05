@@ -6,6 +6,8 @@ import (
 	"io"
 	"io/ioutil"
 	"sync"
+
+	"github.com/sudo-bmitch/reproducible-proxy/config"
 )
 
 type memory struct {
@@ -18,7 +20,7 @@ type memoryFile struct {
 
 // register as a backing
 func init() {
-	Register("memory", func() Backing {
+	Register("memory", func(c config.Config) Backing {
 		m := memory{
 			mu:   sync.Mutex{},
 			file: map[string]*[]byte{},

@@ -44,12 +44,15 @@ func runServer(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
 	// parse args, env, load config
-	conf := config.New(config.ConfigOpts{
+	conf, err := config.New(config.ConfigOpts{
 		AddrAPI:   serverOpts.addrAPI,
 		AddrProxy: serverOpts.addrProxy,
 		ConfFile:  rootOpts.confFile,
 		Log:       log,
 	})
+	if err != nil {
+		return err
+	}
 
 	// create storage object
 	s, err := storage.New(conf)

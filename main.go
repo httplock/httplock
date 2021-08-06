@@ -47,8 +47,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVarP(
 		&rootOpts.confFile,
-		"config", "c",
-		"./config.json",
+		"config", "c", "",
 		"Config file",
 	)
 

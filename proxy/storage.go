@@ -48,8 +48,8 @@ func storageGenDirPath(req *http.Request) ([]string, error) {
 	// host
 	// url path/file
 	// this is only for the directory, filename is a request hash
-	pathEls := []string{req.Proto, req.URL.Host}
-	urlPathEls := strings.Split(req.URL.Path, "/")
+	pathEls := []string{req.URL.Scheme, req.URL.Host}
+	urlPathEls := strings.Split(strings.Trim(req.URL.Path, "/"), "/")
 	pathEls = append(pathEls, urlPathEls...)
 
 	return pathEls, nil

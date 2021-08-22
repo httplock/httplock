@@ -1,0 +1,11 @@
+*
+!go.*
+!*.go
+!api/
+!cert/
+!config/
+!hasher/
+!proxy/
+!storage/
+!vendor/
+!Makefile

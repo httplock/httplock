@@ -255,6 +255,7 @@ func (d *Dir) Hash() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// TODO: ignore errors if file already exists?
 	wd, err := d.backing.Write(hash)
 	if err != nil {
 		return "", err

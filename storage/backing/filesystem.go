@@ -40,7 +40,7 @@ func (f *filesystem) Rename(tgt, src string) error {
 
 func (f *filesystem) Write(name string) (io.WriteCloser, error) {
 	name = filepath.Join(f.dir, filepath.Clean(name))
-	return os.OpenFile(name, os.O_CREATE|os.O_WRONLY, 0600)
+	return os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 }
 
 func (f *filesystem) Delete(name string) error {

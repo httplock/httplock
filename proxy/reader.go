@@ -59,7 +59,7 @@ func newHashRC(r io.ReadCloser, b backing.Backing) (*hashReadCloser, error) {
 		}
 		return &hrc, nil
 	}
-	// TODO: verify size, use backend storage when limit exceeded
+	// TODO: always write to a tmp file in the storage backing, hash the content, rename to hash value, and using backing reader of hash
 
 	// otherwise stream the read through a hasher into a buffer, return a reader on the buffer
 	hr := hasher.NewReader(r)

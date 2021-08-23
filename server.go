@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/sudo-bmitch/reproducible-proxy/api"
+	"github.com/sudo-bmitch/reproducible-proxy/cert"
 	"github.com/sudo-bmitch/reproducible-proxy/config"
 	"github.com/sudo-bmitch/reproducible-proxy/proxy"
 	"github.com/sudo-bmitch/reproducible-proxy/storage"
@@ -60,14 +61,22 @@ func runServer(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// setup cert generation
+	c := cert.NewCert()
+	// TODO: load CA from config if provided
+	err = c.CAGen("Reproducible Proxy CA")
+	if err != nil {
+		return err
+	}
+
 	// launch proxy in goroutine
-	proxySvc, err := proxy.Start(conf, s)
+	proxySvc, err := proxy.Start(conf, s, c)
 	if err != nil {
 		return err
 	}
 
 	// launch api service
-	apiSvc, err := api.Start(conf, s)
+	apiSvc, err := api.Start(conf, s, c)
 	if err != nil {
 		return err
 	}
@@ -78,5 +87,12 @@ func runServer(cmd *cobra.Command, args []string) error {
 	<-sig
 	proxySvc.Shutdown(ctx)
 	apiSvc.Shutdown(ctx)
+
+	// update index files
+	err = s.WriteIndex()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

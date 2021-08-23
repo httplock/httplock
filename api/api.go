@@ -6,38 +6,57 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/sudo-bmitch/reproducible-proxy/cert"
 	"github.com/sudo-bmitch/reproducible-proxy/config"
 	"github.com/sudo-bmitch/reproducible-proxy/storage"
 )
 
 type api struct {
-	c config.Config
-	s *storage.Storage
+	conf  config.Config
+	certs *cert.Cert
+	s     *storage.Storage
 }
 
 // Start runs an api service
-func Start(c config.Config, s *storage.Storage) (*http.Server, error) {
+func Start(conf config.Config, s *storage.Storage, certs *cert.Cert) (*http.Server, error) {
 	a := api{
-		c: c,
-		s: s,
+		conf:  conf,
+		certs: certs,
+		s:     s,
 	}
 	r := mux.NewRouter()
+	r.HandleFunc("/ca", a.caGetPEM).Methods("GET")
 	r.HandleFunc("/token", a.tokenCreate).Methods("POST")
 	r.HandleFunc("/token/{id}", a.tokenDestroy).Methods("DELETE")
 	r.HandleFunc("/token/{id}/save", a.tokenSave).Methods("POST")
 	server := http.Server{
 		Handler: r,
-		Addr:    c.Api.Addr,
+		Addr:    conf.Api.Addr,
 	}
 
 	go func() {
 		err := server.ListenAndServe()
+		// TODO: err is always non-nil, ignore normal shutdown
 		if err != nil {
-			a.c.Log.Fatal("ListenAndServe:", err)
+			a.conf.Log.Warn("ListenAndServe:", err)
 		}
 	}()
 
 	return &server, nil
+}
+
+func (a *api) caGetPEM(w http.ResponseWriter, req *http.Request) {
+	w.Header().Add("Content-Type", "application/text")
+	caPEM, err := a.certs.CAGetPEM()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(caPEM)
+	if err != nil {
+		a.conf.Log.Warn("Failed to send CA PEM: ", err)
+	}
 }
 
 func (a *api) tokenHandle(w http.ResponseWriter, req *http.Request) {
@@ -55,6 +74,7 @@ func (a *api) tokenHandle(w http.ResponseWriter, req *http.Request) {
 // tokenCreate
 func (a *api) tokenCreate(w http.ResponseWriter, req *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
+	// TODO: (bmitch) check for header listing base hash, attempt to retrieve that instead of creating a NewRoot
 	name, _, err := a.s.NewRoot()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

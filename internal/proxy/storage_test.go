@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/storage"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/storage/backing"
+	"github.com/httplock/httplock/internal/config"
+	"github.com/httplock/httplock/internal/storage"
+	"github.com/httplock/httplock/internal/storage/backing"
 )
 
 func TestStorage(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sudo-bmitch/reproducible-proxy/hasher"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/storage"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/storage/backing"
+	"github.com/httplock/httplock/hasher"
+	"github.com/httplock/httplock/internal/storage"
+	"github.com/httplock/httplock/internal/storage/backing"
 )
 
 // TODO: add headers that should not be used in cache calculations

@@ -6,8 +6,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/storage/backing"
+	"github.com/httplock/httplock/internal/config"
+	"github.com/httplock/httplock/internal/storage/backing"
 )
 
 func TestStorage(t *testing.T) {

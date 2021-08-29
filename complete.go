@@ -13,13 +13,13 @@ var completionCmd = &cobra.Command{
 
 Bash:
 
-  $ source <(reproducible-proxy completion bash)
+  $ source <(httplock completion bash)
 
   # To load completions for each session, execute once:
   # Linux:
-  $ reproducible-proxy completion bash > /etc/bash_completion.d/reproducible-proxy
+  $ httplock completion bash > /etc/bash_completion.d/httplock
   # macOS:
-  $ reproducible-proxy completion bash > /usr/local/etc/bash_completion.d/reproducible-proxy
+  $ httplock completion bash > /usr/local/etc/bash_completion.d/httplock
 
 Zsh:
 
@@ -29,23 +29,23 @@ Zsh:
   $ echo "autoload -U compinit; compinit" >> ~/.zshrc
 
   # To load completions for each session, execute once:
-  $ reproducible-proxy completion zsh > "${fpath[1]}/_reproducible-proxy"
+  $ httplock completion zsh > "${fpath[1]}/_httplock"
 
   # You will need to start a new shell for this setup to take effect.
 
 fish:
 
-  $ reproducible-proxy completion fish | source
+  $ httplock completion fish | source
 
   # To load completions for each session, execute once:
-  $ reproducible-proxy completion fish > ~/.config/fish/completions/reproducible-proxy.fish
+  $ httplock completion fish > ~/.config/fish/completions/httplock.fish
 
 PowerShell:
 
-  PS> reproducible-proxy completion powershell | Out-String | Invoke-Expression
+  PS> httplock completion powershell | Out-String | Invoke-Expression
 
   # To load completions for every new session, run:
-  PS> reproducible-proxy completion powershell > reproducible-proxy.ps1
+  PS> httplock completion powershell > httplock.ps1
   # and source this file from your PowerShell profile.
 `,
 	DisableFlagsInUseLine: true,

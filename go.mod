@@ -1,4 +1,4 @@
-module github.com/sudo-bmitch/reproducible-proxy
+module github.com/httplock/httplock
 
 go 1.15
 

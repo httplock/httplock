@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/cert"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/storage"
+	"github.com/httplock/httplock/internal/cert"
+	"github.com/httplock/httplock/internal/config"
+	"github.com/httplock/httplock/internal/storage"
 )
 
 type api struct {

@@ -6,12 +6,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/httplock/httplock/internal/api"
+	"github.com/httplock/httplock/internal/cert"
+	"github.com/httplock/httplock/internal/config"
+	"github.com/httplock/httplock/internal/proxy"
+	"github.com/httplock/httplock/internal/storage"
 	"github.com/spf13/cobra"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/api"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/cert"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/proxy"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/storage"
 )
 
 var serverOpts struct {

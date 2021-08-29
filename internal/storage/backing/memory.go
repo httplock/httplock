@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
+	"github.com/httplock/httplock/internal/config"
 )
 
 type memory struct {

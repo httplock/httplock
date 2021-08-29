@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
+	"github.com/httplock/httplock/internal/config"
 )
 
 func TestMemory(t *testing.T) {

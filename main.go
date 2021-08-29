@@ -18,7 +18,7 @@ var rootOpts struct {
 }
 
 var rootCmd = &cobra.Command{
-	Use:           "reproducible-proxy <cmd>",
+	Use:           "httplock <cmd>",
 	Short:         "HTTP proxy for enabling reproducible builds",
 	SilenceUsage:  true,
 	SilenceErrors: true,

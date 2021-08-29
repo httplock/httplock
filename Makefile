@@ -1,4 +1,4 @@
-COMMAND=reproducible-proxy
+COMMAND=httplock
 BINARIES=bin/$(COMMAND)
 IMAGES=docker-$(COMMAND)
 ARTIFACT_PLATFORMS=linux-amd64 linux-arm64 linux-ppc64le linux-s390x darwin-amd64 windows-amd64.exe
@@ -29,18 +29,18 @@ vendor:
 
 binaries: vendor $(BINARIES)
 
-bin/reproducible-proxy: .FORCE
-	CGO_ENABLED=0 go build ${GO_BUILD_FLAGS} -o bin/reproducible-proxy .
+bin/httplock: .FORCE
+	CGO_ENABLED=0 go build ${GO_BUILD_FLAGS} -o bin/httplock .
 
 docker: $(IMAGES)
 
-docker-reproducible-proxy: .FORCE
-	docker build -t sudobmitch/reproducible-proxy -f Dockerfile$(DOCKERFILE_EXT) $(DOCKER_ARGS) .
-	docker build -t sudobmitch/reproducible-proxy:alpine -f Dockerfile$(DOCKERFILE_EXT) --target release-alpine $(DOCKER_ARGS) .
+docker-httplock: .FORCE
+	docker build -t httplock/httplock -f Dockerfile$(DOCKERFILE_EXT) $(DOCKER_ARGS) .
+	docker build -t httplock/httplock:alpine -f Dockerfile$(DOCKERFILE_EXT) --target release-alpine $(DOCKER_ARGS) .
 
 test-docker: $(addprefix test-docker-,$(COMMANDS))
 
-test-docker-reproducible-proxy:
+test-docker-httplock:
 	docker buildx build --platform="$(TEST_PLATFORMS)" -f Dockerfile.buildkit .
 	docker buildx build --platform="$(TEST_PLATFORMS)" -f Dockerfile.buildkit --target release-alpine .
 
@@ -49,7 +49,7 @@ artifacts: $(ARTIFACTS)
 artifact-pre:
 	mkdir -p artifacts
 
-artifacts/reproducible-proxy-%: artifact-pre .FORCE
+artifacts/httplock-%: artifact-pre .FORCE
 	platform="$*"; \
 	export GOOS="$${platform%%-*}"; \
 	export GOARCH="$${platform#*-}"; \

@@ -13,55 +13,55 @@ WORKDIR /src
 FROM golang as dev
 COPY . /src/
 ENV PATH=${PATH}:/src/bin
-CMD make bin/reproducible-proxy && bin/reproducible-proxy
+CMD make bin/httplock && bin/httplock
 
 FROM dev as build
-RUN make bin/reproducible-proxy
+RUN make bin/httplock
 USER appuser
-CMD [ "bin/reproducible-proxy" ]
+CMD [ "bin/httplock" ]
 
 FROM ${REGISTRY}/library/alpine:${ALPINE_VER} as release-alpine
 COPY --from=build /etc/passwd /etc/group /etc/
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build --chown=appuser /home/appuser /home/appuser
-COPY --from=build /src/bin/reproducible-proxy /usr/local/bin/reproducible-proxy
+COPY --from=build /src/bin/httplock /usr/local/bin/httplock
 USER appuser
-CMD [ "reproducible-proxy", "--help" ]
+CMD [ "httplock", "--help" ]
 
 ARG BUILD_DATE
 ARG VCS_REF
 LABEL maintainer="" \
       org.opencontainers.image.created=$BUILD_DATE \
       org.opencontainers.image.authors="sudo-bmitch" \
-      org.opencontainers.image.url="https://github.com/sudo-bmitch/reproducible-proxy" \
-      org.opencontainers.image.documentation="https://github.com/sudo-bmitch/reproducible-proxy" \
-      org.opencontainers.image.source="https://github.com/sudo-bmitch/reproducible-proxy" \
+      org.opencontainers.image.url="https://github.com/httplock/httplock" \
+      org.opencontainers.image.documentation="https://github.com/httplock/httplock" \
+      org.opencontainers.image.source="https://github.com/httplock/httplock" \
       org.opencontainers.image.version="latest" \
       org.opencontainers.image.revision=$VCS_REF \
       org.opencontainers.image.vendor="" \
       org.opencontainers.image.licenses="Apache 2.0" \
-      org.opencontainers.image.title="reproducible-proxy" \
+      org.opencontainers.image.title="httplock" \
       org.opencontainers.image.description=""
 
 FROM scratch as release-scratch
 COPY --from=build /etc/passwd /etc/group /etc/
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build --chown=appuser /home/appuser /home/appuser
-COPY --from=build /src/bin/reproducible-proxy /reproducible-proxy
+COPY --from=build /src/bin/httplock /httplock
 USER appuser
-ENTRYPOINT [ "/reproducible-proxy" ]
+ENTRYPOINT [ "/httplock" ]
 
 ARG BUILD_DATE
 ARG VCS_REF
 LABEL maintainer="" \
       org.opencontainers.image.created=$BUILD_DATE \
       org.opencontainers.image.authors="sudo-bmitch" \
-      org.opencontainers.image.url="https://github.com/sudo-bmitch/reproducible-proxy" \
-      org.opencontainers.image.documentation="https://github.com/sudo-bmitch/reproducible-proxy" \
-      org.opencontainers.image.source="https://github.com/sudo-bmitch/reproducible-proxy" \
+      org.opencontainers.image.url="https://github.com/httplock/httplock" \
+      org.opencontainers.image.documentation="https://github.com/httplock/httplock" \
+      org.opencontainers.image.source="https://github.com/httplock/httplock" \
       org.opencontainers.image.version="latest" \
       org.opencontainers.image.revision=$VCS_REF \
       org.opencontainers.image.vendor="" \
       org.opencontainers.image.licenses="Apache 2.0" \
-      org.opencontainers.image.title="reproducible-proxy" \
+      org.opencontainers.image.title="httplock" \
       org.opencontainers.image.description=""

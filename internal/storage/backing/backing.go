@@ -3,7 +3,7 @@ package backing
 import (
 	"io"
 
-	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
+	"github.com/httplock/httplock/internal/config"
 )
 
 type Backing interface {

@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
+	"github.com/httplock/httplock/internal/config"
 )
 
 func TestFilesystem(t *testing.T) {

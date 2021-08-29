@@ -5,8 +5,8 @@ import (
 	"io"
 
 	"github.com/google/uuid"
-	"github.com/sudo-bmitch/reproducible-proxy/hasher"
-	"github.com/sudo-bmitch/reproducible-proxy/internal/storage/backing"
+	"github.com/httplock/httplock/hasher"
+	"github.com/httplock/httplock/internal/storage/backing"
 )
 
 type File struct {

@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/sudo-bmitch/reproducible-proxy/config"
+	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
 )
 
 type memory struct {

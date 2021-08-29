@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sudo-bmitch/reproducible-proxy/config"
-	"github.com/sudo-bmitch/reproducible-proxy/storage/backing"
+	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
+	"github.com/sudo-bmitch/reproducible-proxy/internal/storage/backing"
 )
 
 const (

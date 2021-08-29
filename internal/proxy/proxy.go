@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/sudo-bmitch/reproducible-proxy/cert"
-	"github.com/sudo-bmitch/reproducible-proxy/config"
-	"github.com/sudo-bmitch/reproducible-proxy/storage"
+	"github.com/sudo-bmitch/reproducible-proxy/internal/cert"
+	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
+	"github.com/sudo-bmitch/reproducible-proxy/internal/storage"
 )
 
 type proxyHTTP struct {

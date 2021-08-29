@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sudo-bmitch/reproducible-proxy/config"
+	"github.com/sudo-bmitch/reproducible-proxy/internal/config"
 )
 
 type filesystem struct {

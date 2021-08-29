@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 
 	"github.com/sudo-bmitch/reproducible-proxy/hasher"
-	"github.com/sudo-bmitch/reproducible-proxy/storage/backing"
+	"github.com/sudo-bmitch/reproducible-proxy/internal/storage/backing"
 )
 
 type teeReadCloser struct {

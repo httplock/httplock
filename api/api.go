@@ -59,23 +59,18 @@ func (a *api) caGetPEM(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (a *api) tokenHandle(w http.ResponseWriter, req *http.Request) {
-	switch req.Method {
-	case "POST":
-		a.tokenCreate(w, req)
-	case "DELETE":
-		a.tokenDestroy(w, req)
-	default:
-		// error, unhandled
-		w.WriteHeader(http.StatusNotFound)
-	}
-}
-
 // tokenCreate
 func (a *api) tokenCreate(w http.ResponseWriter, req *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
-	// TODO: (bmitch) check for header listing base hash, attempt to retrieve that instead of creating a NewRoot
-	name, _, err := a.s.NewRoot()
+	// check for base hash arg, attempt to retrieve that instead of creating a NewRoot
+	hash := req.FormValue("hash")
+	var name string
+	var err error
+	if hash != "" {
+		name, _, err = a.s.NewRootFrom(hash)
+	} else {
+		name, _, err = a.s.NewRoot()
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		// TODO: properly escape error message, and probably don't pass through err

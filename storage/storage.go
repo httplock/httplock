@@ -61,6 +61,20 @@ func (s *Storage) NewRoot() (string, *Dir, error) {
 	return u, d, nil
 }
 
+func (s *Storage) NewRootFrom(name string) (string, *Dir, error) {
+	var err error
+	u := fmt.Sprintf("uuid:%s", uuid.New().String())
+	d, ok := s.roots[name]
+	if !ok || d == nil {
+		d, err = DirLoad(s.Backing, name)
+	}
+	if err != nil {
+		return "", nil, err
+	}
+	s.roots[u] = d
+	return u, d, nil
+}
+
 func (s *Storage) GetRoot(name string) (*Dir, error) {
 	d, ok := s.roots[name]
 	if ok && d != nil {

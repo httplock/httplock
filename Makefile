@@ -4,8 +4,8 @@ IMAGES=docker-$(COMMAND)
 ARTIFACT_PLATFORMS=linux-amd64 linux-arm64 linux-ppc64le linux-s390x darwin-amd64 windows-amd64.exe
 ARTIFACTS=$(addprefix artifacts/$(COMMAND)-,$(ARTIFACT_PLATFORMS))
 TEST_PLATFORMS=linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/ppc64le,linux/s390x
-VCS_REF=$(shell git rev-list -1 HEAD)
-ifneq ($(shell git status --porcelain),)
+VCS_REF=$(shell git rev-list -1 HEAD 2>/dev/null)
+ifneq ($(shell git status --porcelain 2>/dev/null),)
   VCS_REF := $(VCS_REF)-dirty
 endif
 VCS_TAG=$(shell git describe --tags --abbrev=0 2>/dev/null || echo "none")

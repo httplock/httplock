@@ -1,6 +1,7 @@
 *
 !go.*
 !*.go
+!embed/
 !hasher/
 !internal/
 !vendor/

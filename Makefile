@@ -40,7 +40,7 @@ bin/httplock: .FORCE
 
 docker: $(IMAGES)
 
-docker-httplock: .FORCE
+docker-httplock: embed/version.json .FORCE
 	docker build -t httplock/httplock -f Dockerfile$(DOCKERFILE_EXT) $(DOCKER_ARGS) .
 	docker build -t httplock/httplock:alpine -f Dockerfile$(DOCKERFILE_EXT) --target release-alpine $(DOCKER_ARGS) .
 

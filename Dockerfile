@@ -5,7 +5,6 @@ ARG GO_VER=1.16-alpine
 FROM ${REGISTRY}/library/golang:${GO_VER} as golang
 RUN apk add --no-cache \
       ca-certificates \
-      git \
       make
 RUN adduser -D appuser
 WORKDIR /src

@@ -5,6 +5,9 @@ ARTIFACT_PLATFORMS=linux-amd64 linux-arm64 linux-ppc64le linux-s390x darwin-amd6
 ARTIFACTS=$(addprefix artifacts/$(COMMAND)-,$(ARTIFACT_PLATFORMS))
 TEST_PLATFORMS=linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/ppc64le,linux/s390x
 VCS_REF=$(shell git rev-list -1 HEAD)
+ifneq ($(shell git status --porcelain),)
+  VCS_REF := $(VCS_REF)-dirty
+endif
 VCS_TAG=$(shell git describe --tags --abbrev=0 2>/dev/null || echo "none")
 DOCKERFILE_EXT=$(shell if docker build --help | grep -q -- '--progress'; then echo ".buildkit"; fi)
 DOCKER_ARGS=--build-arg "VCS_REF=$(VCS_REF)"
@@ -27,7 +30,10 @@ test:
 vendor:
 	go mod vendor
 
-binaries: vendor $(BINARIES)
+embed/version.json: .FORCE
+	echo "{\"VCSRef\": \"$(VCS_REF)\", \"VCSTag\": \"$(VCS_TAG)\"}" >embed/version.json
+
+binaries: vendor embed/version.json $(BINARIES)
 
 bin/httplock: .FORCE
 	CGO_ENABLED=0 go build ${GO_BUILD_FLAGS} -o bin/httplock .
@@ -50,7 +56,8 @@ artifact-pre:
 	mkdir -p artifacts
 
 artifacts/httplock-%: artifact-pre .FORCE
-	platform="$*"; \
+	platform_ext="$*"; \
+	platform="$${platform_ext%.*}"; \
 	export GOOS="$${platform%%-*}"; \
 	export GOARCH="$${platform#*-}"; \
 	echo export GOOS=$${GOOS}; \

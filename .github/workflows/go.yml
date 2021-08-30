@@ -1,0 +1,82 @@
+name: Go
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.14
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.14
+      id: go
+
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    - name: Get dependencies
+      run: |
+        go get -v -t -d ./...
+
+    - name: Test
+      run: make test
+
+    - name: Build artifacts
+      if: startsWith( github.ref, 'refs/tags/v' ) || github.ref == 'refs/heads/main'
+      run: make artifacts
+
+    - name: Gather release details
+      if: startsWith( github.ref, 'refs/tags/v' ) && github.repository_owner == 'httplock'
+      id: release_details
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        VALID_RELEASE=false
+        if [ -f "release.md" ] && grep -q "Release $VERSION" release.md; then
+          VALID_RELEASE=true
+        fi
+        RELEASE_NOTES=$(cat release.md || echo release notes unavailable)
+        # escape % and linefeeds
+        RELEASE_NOTES="${RELEASE_NOTES//'%'/'%25'}"
+        RELEASE_NOTES="${RELEASE_NOTES//$'\n'/'%0A'}"
+        RELEASE_NOTES="${RELEASE_NOTES//$'\r'/'%0D'}"
+        echo ::set-output name=version::${VERSION}
+        echo ::set-output name=valid::${VALID_RELEASE}
+        echo ::set-output name=release_notes::${RELEASE_NOTES}
+
+    - name: Create release
+      if: steps.release_details.outputs.valid == 'true'
+      id: release_create
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.release_details.outputs.version }}
+        body: ${{ steps.release_details.outputs.release_notes }}
+        draft: false
+        prerelease: false
+        files: |
+          ./artifacts/httplock-darwin-amd64
+          ./artifacts/httplock-linux-amd64
+          ./artifacts/httplock-linux-arm64
+          ./artifacts/httplock-linux-ppc64le
+          ./artifacts/httplock-linux-s390x
+          ./artifacts/httplock-windows-amd64.exe
+
+    - name: Save artifacts
+      if: github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v2
+      with:
+        name: binaries
+        path: ./artifacts/
+        retention-days: 7

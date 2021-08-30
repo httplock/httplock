@@ -1,0 +1,103 @@
+name: Docker
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'feature/**'
+    tags:
+      - 'v*.*.*'
+  schedule:
+    - cron: '0 06 * * *'
+
+jobs:
+
+  docker:
+    name: Docker
+    runs-on: ubuntu-latest
+    steps:
+    - name: Prepare
+      id: prep
+      run: |
+        HTTPLOCK_IMAGE=httplock/httplock
+        VERSION=noop
+        if [ "${{ github.event_name }}" = "schedule" ]; then
+          VERSION=edge
+        elif [[ $GITHUB_REF == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/}
+        elif [[ $GITHUB_REF == refs/heads/* ]]; then
+          VERSION=$(echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g')
+          if [ "${{ github.event.repository.default_branch }}" = "$VERSION" ]; then
+            VERSION=edge
+          fi
+        elif [[ $GITHUB_REF == refs/pull/* ]]; then
+          VERSION=pr-${{ github.event.number }}
+        fi
+        HTTPLOCK_TAGS_SCRATCH="${HTTPLOCK_IMAGE}:${VERSION}"
+        HTTPLOCK_TAGS_ALPINE="${HTTPLOCK_IMAGE}:${VERSION}-alpine"
+        if [[ $VERSION =~ ^v[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+          MINOR=${VERSION%.*}
+          MAJOR=${MINOR%.*}
+          HTTPLOCK_TAGS_SCRATCH="${HTTPLOCK_TAGS_SCRATCH},${HTTPLOCK_IMAGE}:${MINOR},${HTTPLOCK_IMAGE}:${MAJOR},${HTTPLOCK_IMAGE}:latest"
+          HTTPLOCK_TAGS_ALPINE="${HTTPLOCK_TAGS_ALPINE},${HTTPLOCK_IMAGE}:${MINOR}-alpine,${HTTPLOCK_IMAGE}:${MAJOR}-alpine,${HTTPLOCK_IMAGE}:alpine"
+        fi
+        echo ::set-output name=version::${VERSION}
+        echo ::set-output name=httplock_tags_scratch::${HTTPLOCK_TAGS_SCRATCH}
+        echo ::set-output name=httplock_tags_alpine::${HTTPLOCK_TAGS_ALPINE}
+        echo ::set-output name=created::$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    # - name: Set up QEMU
+    #   uses: docker/setup-qemu-action@v1
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+     
+    - name: Login to DockerHub
+      if: github.repository_owner == 'httplock'
+      uses: docker/login-action@v1 
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+     
+    - name: Cache docker build
+      uses: actions/cache@v2
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx
+
+    - name: Build and push httplock scratch
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        file: ./build/Dockerfile.buildkit
+        platforms: linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/ppc64le,linux/s390x
+        push: ${{ github.event_name != 'pull_request' && github.repository_owner == 'httplock' }}
+        target: release-scratch
+        tags: ${{ steps.prep.outputs.httplock_tags_scratch }}
+        cache-from: type=local,src=/tmp/.buildx-httplock-cache
+        cache-to: type=local,dest=/tmp/.buildx-httplock-cache
+        labels: |
+          org.opencontainers.image.created=${{ steps.prep.outputs.created }}
+          org.opencontainers.image.source=${{ github.repositoryUrl }}
+          org.opencontainers.image.version=${{ steps.prep.outputs.version }}
+          org.opencontainers.image.revision=${{ github.sha }}
+
+    - name: Build and push httplock alpine
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        file: ./build/Dockerfile.buildkit
+        platforms: linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/ppc64le,linux/s390x
+        push: ${{ github.event_name != 'pull_request' && github.repository_owner == 'httplock' }}
+        target: release-alpine
+        tags: ${{ steps.prep.outputs.httplock_tags_alpine }}
+        cache-from: type=local,src=/tmp/.buildx-httplock-cache
+        cache-to: type=local,dest=/tmp/.buildx-httplock-cache
+        labels: |
+          org.opencontainers.image.created=${{ steps.prep.outputs.created }}
+          org.opencontainers.image.source=${{ github.repositoryUrl }}
+          org.opencontainers.image.version=${{ steps.prep.outputs.version }}
+          org.opencontainers.image.revision=${{ github.sha }}

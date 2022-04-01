@@ -1,3 +1,4 @@
+// Package config parses the config file
 package config
 
 import (
@@ -11,7 +12,7 @@ import (
 )
 
 type Config struct {
-	Api struct {
+	API struct {
 		Addr string `json:"addr"`
 	} `json:"api"`
 	Proxy struct {
@@ -39,7 +40,7 @@ func New(opts ConfigOpts) (Config, error) {
 	}
 	// configure defaults
 	c.Storage.Backing = "memory"
-	c.Api.Addr = "127.0.0.1:8081"
+	c.API.Addr = "127.0.0.1:8081"
 	c.Proxy.Addr = "127.0.0.1:8080"
 
 	// enable logging
@@ -59,7 +60,7 @@ func New(opts ConfigOpts) (Config, error) {
 
 	// process cli flags
 	if opts.AddrAPI != "" {
-		c.Api.Addr = opts.AddrAPI
+		c.API.Addr = opts.AddrAPI
 	}
 	if opts.AddrProxy != "" {
 		c.Proxy.Addr = opts.AddrProxy

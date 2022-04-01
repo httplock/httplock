@@ -61,7 +61,7 @@ func TestMemory(t *testing.T) {
 			if err != nil {
 				t.Errorf("File read error: %v", err)
 			}
-			if bytes.Compare(mrb, tt.input) != 0 {
+			if !bytes.Equal(mrb, tt.input) {
 				t.Errorf("File read: got %s, expected %s", mrb, tt.input)
 			}
 		})

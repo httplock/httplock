@@ -29,7 +29,10 @@ func TestHashReader(t *testing.T) {
 			buf := bytes.NewBuffer(tt.input)
 			h := NewReader(buf)
 			result, err := ioutil.ReadAll(h)
-			if bytes.Compare(result, tt.input) != 0 {
+			if err != nil {
+				t.Errorf("Error reading from hasher: %v", err)
+			}
+			if !bytes.Equal(result, tt.input) {
 				t.Errorf("Read got bytes %s, expected %s", result, tt.input)
 			}
 			if h.String() != tt.hash {

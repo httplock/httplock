@@ -1,3 +1,4 @@
+// Package hasher generates canonical hashes for either a byte array, reader, or writer
 package hasher
 
 import (

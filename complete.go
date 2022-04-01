@@ -69,23 +69,23 @@ func init() {
 	rootCmd.AddCommand(completionCmd)
 }
 
-type completeFunc func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective)
+// type completeFunc func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective)
 
-func completeArgNone(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	return nil, cobra.ShellCompDirectiveNoFileComp
-}
+// func completeArgNone(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+// 	return nil, cobra.ShellCompDirectiveNoFileComp
+// }
 
-func completeArgDefault(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	return nil, cobra.ShellCompDirectiveDefault
-}
+// func completeArgDefault(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+// 	return nil, cobra.ShellCompDirectiveDefault
+// }
 
-// completeArgList takes a list of completion functions and completes each arg separately
-func completeArgList(funcList []completeFunc) completeFunc {
-	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		pos := len(args)
-		if pos >= len(funcList) {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		return funcList[pos](cmd, args, toComplete)
-	}
-}
+// // completeArgList takes a list of completion functions and completes each arg separately
+// func completeArgList(funcList []completeFunc) completeFunc {
+// 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+// 		pos := len(args)
+// 		if pos >= len(funcList) {
+// 			return nil, cobra.ShellCompDirectiveNoFileComp
+// 		}
+// 		return funcList[pos](cmd, args, toComplete)
+// 	}
+// }

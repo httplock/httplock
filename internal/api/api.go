@@ -1,3 +1,4 @@
+// Package api implements the handler for various API requests to httplock
 package api
 
 import (
@@ -31,7 +32,7 @@ func Start(conf config.Config, s *storage.Storage, certs *cert.Cert) (*http.Serv
 	r.HandleFunc("/token/{id}/save", a.tokenSave).Methods("POST")
 	server := http.Server{
 		Handler: r,
-		Addr:    conf.Api.Addr,
+		Addr:    conf.API.Addr,
 	}
 
 	go func() {

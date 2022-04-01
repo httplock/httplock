@@ -1,3 +1,4 @@
+// Package proxy implements the http proxy
 package proxy
 
 import (
@@ -104,7 +105,7 @@ func appendHostToXForwardHeader(header http.Header, host string) {
 func checkAuthBasic(auth string) (string, string, error) {
 	authParts := strings.Split(auth, " ")
 	if len(authParts) != 2 || authParts[0] != "Basic" {
-		return "", "", fmt.Errorf("Basic auth header not found")
+		return "", "", fmt.Errorf("basic auth header not found")
 	}
 	userpassRaw, err := base64.StdEncoding.DecodeString(authParts[1])
 	if err != nil {
@@ -112,7 +113,7 @@ func checkAuthBasic(auth string) (string, string, error) {
 	}
 	userpass := strings.SplitN(string(userpassRaw), ":", 2)
 	if len(userpass) != 2 {
-		return "", "", fmt.Errorf("Basic user/pass missing")
+		return "", "", fmt.Errorf("basic user/pass missing")
 	}
 	return userpass[0], userpass[1], nil
 }
@@ -121,7 +122,6 @@ func requireAuthBasic(w http.ResponseWriter) {
 	w.Header().Add("Proxy-Authenticate", "Basic")
 	w.Header().Add("Proxy-Connection", "close")
 	w.WriteHeader(http.StatusProxyAuthRequired)
-	return
 }
 
 func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *storage.Dir) {
@@ -168,6 +168,7 @@ func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *s
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
+	// TODO: unneeded, deferred above
 	resp.Body.Close()
 }
 
@@ -175,18 +176,18 @@ func (p *proxy) getAuth(req *http.Request) (*storage.Dir, error) {
 	// use proxy auth to get the correct token
 	auth := req.Header.Get("Proxy-Authorization")
 	if auth == "" {
-		return nil, fmt.Errorf("No proxy header found")
+		return nil, fmt.Errorf("no proxy header found")
 	}
 	user, pass, err := checkAuthBasic(auth)
 	if err != nil {
-		return nil, fmt.Errorf("Check basic auth failed on \"%s\": %v\n", auth, err)
+		return nil, fmt.Errorf("check basic auth failed on \"%s\": %v", auth, err)
 	}
 	if user != "token" {
-		return nil, fmt.Errorf("Auth user is not token: %s\n", user)
+		return nil, fmt.Errorf("auth user is not token: %s", user)
 	}
 	root, err := p.storage.GetRoot(pass)
 	if err != nil {
-		return nil, fmt.Errorf("Get root failed on \"%s\": %v\n", pass, err)
+		return nil, fmt.Errorf("get root failed on \"%s\": %v", pass, err)
 	}
 	return root, nil
 }

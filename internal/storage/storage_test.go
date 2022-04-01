@@ -132,15 +132,15 @@ func TestStorage(t *testing.T) {
 	}
 	t.Logf("subcomplex: hash %s, json %s", sch, scj)
 
-	sfh, err := subfile.Hash()
-	if err != nil {
-		t.Errorf("subfile.Hash error: %v", err)
-	}
-	sfj, err := json.Marshal(subfile)
-	if err != nil {
-		t.Errorf("json.Marshal(subfile) error: %v", err)
-	}
-	t.Logf("subfile: hash %s, json %s", sfh, sfj)
+	// sfh, err := subfile.Hash()
+	// if err != nil {
+	// 	t.Errorf("subfile.Hash error: %v", err)
+	// }
+	// sfj, err := json.Marshal(subfile)
+	// if err != nil {
+	// 	t.Errorf("json.Marshal(subfile) error: %v", err)
+	// }
+	// t.Logf("subfile: hash %s, json %s", sfh, sfj)
 
 	// load a new root
 	root2, err := DirLoad(mb, rootHash)
@@ -214,19 +214,19 @@ func TestStorage(t *testing.T) {
 	if rootHash != root2Hash {
 		t.Errorf("root hash mismatch, orig %s, copy %s", rootHash, root2Hash)
 	}
-	if bytes.Compare(rootJSON, root2JSON) != 0 {
+	if !bytes.Equal(rootJSON, root2JSON) {
 		t.Errorf("json marshal mismatch,\n\tfirst: %s\n\tsecond: %s", rootJSON, root2JSON)
 	}
-	if bytes.Compare([]byte(sfdata), sf2data) != 0 {
+	if !bytes.Equal([]byte(sfdata), sf2data) {
 		t.Errorf("sfdata mismatch, write %s, read %s", sfdata, sf2data)
 	}
-	if bytes.Compare([]byte(sdfdata), sdf2data) != 0 {
+	if !bytes.Equal([]byte(sdfdata), sdf2data) {
 		t.Errorf("sdfdata mismatch, write %s, read %s", sdfdata, sdf2data)
 	}
-	if bytes.Compare([]byte(scmeta), sc2meta) != 0 {
+	if !bytes.Equal([]byte(scmeta), sc2meta) {
 		t.Errorf("scmeta mismatch, write %s, read %s", scmeta, sc2meta)
 	}
-	if bytes.Compare([]byte(scdata), sc2data) != 0 {
+	if !bytes.Equal([]byte(scdata), sc2data) {
 		t.Errorf("scdata mismatch, write %s, read %s", scdata, sc2data)
 	}
 

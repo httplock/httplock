@@ -34,7 +34,7 @@ func (m *memory) Read(name string) (io.ReadCloser, error) {
 		b := bytes.NewBuffer(*data)
 		return ioutil.NopCloser(b), nil
 	}
-	return nil, fmt.Errorf("File not found")
+	return nil, fmt.Errorf("file not found")
 }
 
 func (m *memory) Rename(tgt, src string) error {
@@ -43,7 +43,7 @@ func (m *memory) Rename(tgt, src string) error {
 		delete(m.file, src)
 		return nil
 	}
-	return fmt.Errorf("File not found")
+	return fmt.Errorf("file not found")
 }
 
 func (m *memory) Write(name string) (io.WriteCloser, error) {

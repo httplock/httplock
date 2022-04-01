@@ -89,8 +89,8 @@ jobs:
         push: ${{ github.event_name != 'pull_request' && github.repository_owner == 'httplock' }}
         target: release-scratch
         tags: ${{ steps.prep.outputs.httplock_tags_scratch }}
-        cache-from: type=local,src=/tmp/.buildx-httplock-cache
-        cache-to: type=local,dest=/tmp/.buildx-httplock-cache
+        cache-from: type=local,src=/tmp/.buildx-cache/httplock-scratch
+        cache-to: type=local,dest=/tmp/.buildx-cache/httplock-scratch
         labels: |
           org.opencontainers.image.created=${{ steps.prep.outputs.created }}
           org.opencontainers.image.source=${{ github.repositoryUrl }}
@@ -106,8 +106,8 @@ jobs:
         push: ${{ github.event_name != 'pull_request' && github.repository_owner == 'httplock' }}
         target: release-alpine
         tags: ${{ steps.prep.outputs.httplock_tags_alpine }}
-        cache-from: type=local,src=/tmp/.buildx-httplock-cache
-        cache-to: type=local,dest=/tmp/.buildx-httplock-cache
+        cache-from: type=local,src=/tmp/.buildx-cache/httplock-alpine
+        cache-to: type=local,dest=/tmp/.buildx-cache/httplock-alpine
         labels: |
           org.opencontainers.image.created=${{ steps.prep.outputs.created }}
           org.opencontainers.image.source=${{ github.repositoryUrl }}

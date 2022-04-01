@@ -64,6 +64,7 @@ func TestCert(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to parse ca cert: %v", err)
 	}
+	//lint:ignore SA4006 testing still being developed
 	chains, err := caCert.Verify(x509.VerifyOptions{
 		Roots: pool,
 		// DNSName:   exampleHost,

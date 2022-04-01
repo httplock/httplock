@@ -1,3 +1,4 @@
+// Package storage handles content storage and retrieval with various backings
 package storage
 
 import (
@@ -33,7 +34,7 @@ type IndexRoot struct {
 func New(c config.Config) (*Storage, error) {
 	b := backing.Get(c)
 	if b == nil {
-		return nil, fmt.Errorf("Backing not found: %s", c.Storage.Backing)
+		return nil, fmt.Errorf("backing not found: %s", c.Storage.Backing)
 	}
 	s := Storage{
 		Backing: b,
@@ -86,7 +87,7 @@ func (s *Storage) GetRoot(name string) (*Dir, error) {
 		s.usedRoot(name)
 		return d, nil
 	}
-	return nil, fmt.Errorf("Root not found: %s", name)
+	return nil, fmt.Errorf("root not found: %s", name)
 }
 
 func (s *Storage) ListRoots() ([]string, error) {
@@ -106,11 +107,11 @@ func (s *Storage) ListRoots() ([]string, error) {
 func (s *Storage) SaveRoot(name string) (string, error) {
 	d, ok := s.roots[name]
 	if !ok {
-		return "", fmt.Errorf("Root not found: %s", name)
+		return "", fmt.Errorf("root not found: %s", name)
 	}
 	h, err := d.Hash()
 	if err != nil {
-		return "", fmt.Errorf("Hashing root failed: %w", err)
+		return "", fmt.Errorf("hashing root failed: %w", err)
 	}
 	s.roots[h] = d
 	// add entry to the index

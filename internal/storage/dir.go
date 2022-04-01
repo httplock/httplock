@@ -57,7 +57,7 @@ func (e entryType) MarshalText() ([]byte, error) {
 func (e *entryType) UnmarshalText(b []byte) error {
 	switch strings.ToLower(string(b)) {
 	default:
-		return fmt.Errorf("Unknown entry type \"%s\"", b)
+		return fmt.Errorf("unknown entry type \"%s\"", b)
 	case "dir":
 		*e = entryDir
 	case "file":
@@ -99,7 +99,7 @@ func DirLoad(backing backing.Backing, hash string) (*Dir, error) {
 
 func (d *Dir) CreateDir(name string) (*Dir, error) {
 	if _, ok := d.Entries[name]; ok {
-		return nil, fmt.Errorf("Directory entry exists with same name \"%s\"", name)
+		return nil, fmt.Errorf("directory entry exists with same name \"%s\"", name)
 	}
 	newDir, err := DirNew(d.backing)
 	if err != nil {
@@ -117,7 +117,7 @@ func (d *Dir) CreateDir(name string) (*Dir, error) {
 
 func (d *Dir) CreateFile(name string) (*File, error) {
 	if _, ok := d.Entries[name]; ok {
-		return nil, fmt.Errorf("Directory entry exists with same name \"%s\"", name)
+		return nil, fmt.Errorf("directory entry exists with same name \"%s\"", name)
 	}
 	newFile, err := FileNew(d.backing)
 	if err != nil {
@@ -135,7 +135,7 @@ func (d *Dir) CreateFile(name string) (*File, error) {
 
 func (d *Dir) CreateComplex(name string) (*ComplexFile, error) {
 	if _, ok := d.Entries[name]; ok {
-		return nil, fmt.Errorf("Directory entry exists with same name \"%s\"", name)
+		return nil, fmt.Errorf("directory entry exists with same name \"%s\"", name)
 	}
 	newComplex, err := ComplexNew(d.backing)
 	if err != nil {
@@ -156,15 +156,15 @@ func (d *Dir) GetDir(name string) (*Dir, error) {
 	defer d.mu.Unlock()
 	de, ok := d.Entries[name]
 	if !ok {
-		return nil, fmt.Errorf("Not found")
+		return nil, fmt.Errorf("not found")
 	}
 	if de.Kind != entryDir {
-		return nil, fmt.Errorf("Entry is not a directory")
+		return nil, fmt.Errorf("entry is not a directory")
 	}
 	if de.dir == nil {
 		ded, err := DirLoad(d.backing, de.Hash)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to load directory")
+			return nil, fmt.Errorf("failed to load directory")
 		}
 		d.Entries[name].dir = ded
 	}
@@ -176,15 +176,15 @@ func (d *Dir) GetComplex(name string) (*ComplexFile, error) {
 	defer d.mu.Unlock()
 	de, ok := d.Entries[name]
 	if !ok {
-		return nil, fmt.Errorf("Not found")
+		return nil, fmt.Errorf("not found")
 	}
 	if de.Kind != entryComplex {
-		return nil, fmt.Errorf("Entry is not a complex file")
+		return nil, fmt.Errorf("entry is not a complex file")
 	}
 	if de.complex == nil {
 		dec, err := ComplexLoad(d.backing, de.Hash)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to load complex file")
+			return nil, fmt.Errorf("failed to load complex file")
 		}
 		d.Entries[name].complex = dec
 	}
@@ -196,15 +196,15 @@ func (d *Dir) GetFile(name string) (*File, error) {
 	defer d.mu.Unlock()
 	de, ok := d.Entries[name]
 	if !ok {
-		return nil, fmt.Errorf("Not found")
+		return nil, fmt.Errorf("not found")
 	}
 	if de.Kind != entryFile {
-		return nil, fmt.Errorf("Entry is not a file")
+		return nil, fmt.Errorf("entry is not a file")
 	}
 	if de.file == nil {
 		def, err := FileLoad(d.backing, de.Hash)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to load file")
+			return nil, fmt.Errorf("failed to load file")
 		}
 		d.Entries[name].file = def
 	}

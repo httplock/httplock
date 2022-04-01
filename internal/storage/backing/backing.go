@@ -1,3 +1,4 @@
+// Package backing provides interfaces to various storage backends
 package backing
 
 import (

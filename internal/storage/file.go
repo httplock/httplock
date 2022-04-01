@@ -28,7 +28,7 @@ func FileNew(backing backing.Backing) (*File, error) {
 	return &f, nil
 }
 
-// FileLoad: load a file based on hash
+// FileLoad loads a file based on hash
 func FileLoad(backing backing.Backing, hash string) (*File, error) {
 	f := File{
 		hash:    hash,

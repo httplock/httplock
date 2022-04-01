@@ -110,7 +110,7 @@ func storageGetResp(req *http.Request, root *storage.Dir, b backing.Backing) (*h
 	for _, el := range dirElems {
 		nextDir, err := curDir.GetDir(el)
 		if err != nil {
-			return nil, fmt.Errorf("Not found: %w", err)
+			return nil, fmt.Errorf("not found: %w", err)
 		}
 		curDir = nextDir
 	}
@@ -119,7 +119,7 @@ func storageGetResp(req *http.Request, root *storage.Dir, b backing.Backing) (*h
 		return nil, err
 	}
 	if _, ok := curDir.Entries[fileName]; !ok {
-		return nil, fmt.Errorf("Not found")
+		return nil, fmt.Errorf("not found")
 	}
 	cf, err := curDir.GetComplex(fileName)
 	if err != nil {
@@ -132,10 +132,10 @@ func storageGetResp(req *http.Request, root *storage.Dir, b backing.Backing) (*h
 
 	// copy metadata into response
 	respR, err := cf.Read("meta-resp")
-	defer respR.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer respR.Close()
 	mrj, err := ioutil.ReadAll(respR)
 	if err != nil {
 		return nil, err
@@ -191,9 +191,12 @@ func storagePutResp(req *http.Request, resp *http.Response, root *storage.Dir, b
 		curDir = nextDir
 	}
 	if _, ok := curDir.Entries[fileName]; ok {
-		return fmt.Errorf("Entry already exists")
+		return fmt.Errorf("entry already exists")
 	}
 	cf, err := curDir.CreateComplex(fileName)
+	if err != nil {
+		return err
+	}
 
 	// add meta data on the request for auditing
 	reqW, err := cf.Write("meta-req")
@@ -213,7 +216,7 @@ func storagePutResp(req *http.Request, resp *http.Response, root *storage.Dir, b
 	if hbr, ok := req.Body.(*hashReadCloser); ok && hbr != nil {
 		metaReq.BodyHash = hbr.h
 	} else {
-		return fmt.Errorf("Body reader is not a hashReadCloser")
+		return fmt.Errorf("body reader is not a hashReadCloser")
 	}
 	mrj, err := json.Marshal(metaReq)
 	if err != nil {

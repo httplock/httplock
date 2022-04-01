@@ -32,7 +32,7 @@ func ComplexNew(backing backing.Backing) (*ComplexFile, error) {
 	return &cf, nil
 }
 
-// ComplexLoad: read a complexFile from backend storage
+// ComplexLoad reads a complexFile from backend storage
 func ComplexLoad(backing backing.Backing, hash string) (*ComplexFile, error) {
 	var cf ComplexFile
 	rdr, err := backing.Read(hash)
@@ -56,13 +56,13 @@ func (cf *ComplexFile) Delete() error {
 	if cf.hash != "" {
 		return cf.backing.Delete(cf.hash)
 	}
-	return fmt.Errorf("Complex File has not been written to storage")
+	return fmt.Errorf("complex File has not been written to storage")
 }
 
 func (cf *ComplexFile) Read(entry string) (io.ReadCloser, error) {
 	e, ok := cf.Entries[entry]
 	if !ok {
-		return nil, fmt.Errorf("Entry not found")
+		return nil, fmt.Errorf("entry not found")
 	}
 	// load file if needed
 	if e.f == nil {
@@ -77,7 +77,7 @@ func (cf *ComplexFile) Read(entry string) (io.ReadCloser, error) {
 
 func (cf *ComplexFile) Write(entry string) (io.WriteCloser, error) {
 	if _, ok := cf.Entries[entry]; ok {
-		return nil, fmt.Errorf("Entry already exists")
+		return nil, fmt.Errorf("entry already exists")
 	}
 	f, err := FileNew(cf.backing)
 	if err != nil {

@@ -1,3 +1,4 @@
+// Package cert handles certificates for https proxied requests
 package cert
 
 import (
@@ -126,7 +127,7 @@ func (c *Cert) CASet(cert *tls.Certificate) error {
 	if cert.Leaf == nil {
 		return fmt.Errorf("CA cert missing leaf for public key")
 	}
-	if cert.Leaf.IsCA != true {
+	if !cert.Leaf.IsCA {
 		return fmt.Errorf("CA cert is missing CA flag")
 	}
 	c.ca = cert
@@ -148,7 +149,7 @@ func (c *Cert) CAGetPEM() ([]byte, error) {
 
 func (c *Cert) LeafCert(names []string) (*tls.Certificate, error) {
 	if len(names) < 1 {
-		return nil, fmt.Errorf("Missing name for leaf cert")
+		return nil, fmt.Errorf("missing name for leaf cert")
 	}
 	if c.ca == nil || c.ca.Leaf == nil || !c.ca.Leaf.IsCA {
 		return nil, fmt.Errorf("CA needed to generate leaf certificates")
@@ -200,6 +201,7 @@ func genKeyEC() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 }
 
+//lint:ignore U1000 saving for potential future usage
 func genKeyRSA(bits int) (*rsa.PrivateKey, error) {
 	return rsa.GenerateKey(rand.Reader, bits)
 }

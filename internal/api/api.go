@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/httplock/httplock/internal/cert"
@@ -30,6 +31,8 @@ func Start(conf config.Config, s *storage.Storage, certs *cert.Cert) (*http.Serv
 	r.HandleFunc("/token", a.tokenCreate).Methods("POST")
 	r.HandleFunc("/token/{id}", a.tokenDestroy).Methods("DELETE")
 	r.HandleFunc("/token/{id}/save", a.tokenSave).Methods("POST")
+	r.HandleFunc("/storage/{id}/export", a.storageExport).Methods("GET")
+	r.HandleFunc("/storage/{id}/import", a.storageImport).Methods("PUT")
 	server := http.Server{
 		Handler: r,
 		Addr:    conf.API.Addr,
@@ -107,6 +110,7 @@ func (a *api) tokenSave(w http.ResponseWriter, req *http.Request) {
 	id, ok := vars["id"]
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 	// SaveRoot generates the hash and saves to a list of roots
 	h, err := a.s.SaveRoot(id)
@@ -118,6 +122,47 @@ func (a *api) tokenSave(w http.ResponseWriter, req *http.Request) {
 	}
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, "{\"hash\": \"%s\"}", h)
+}
+
+// storageExport
+func (a *api) storageExport(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	// load the token and get the root
+	id, ok := vars["id"]
+	if !ok || strings.HasPrefix(id, "uuid:") {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	root, err := a.s.GetRoot(id)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	// create a tar writer
+	w.Header().Add("Content-Type", "application/x-gtar")
+	err = a.s.Export(root, w)
+	if err != nil {
+		a.conf.Log.Warnf("failed to export: %w", err)
+	}
+}
+
+// storageImport
+func (a *api) storageImport(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	// check requested root
+	id, ok := vars["id"]
+	if !ok || strings.HasPrefix(id, "uuid:") {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err := a.s.Import(id, req.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to import: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
 }
 
 // metrics

@@ -95,6 +95,10 @@ func (cf *ComplexFile) Write(entry string) (io.WriteCloser, error) {
 func (cf *ComplexFile) Hash() (string, error) {
 	// first gather hash on each entry
 	for key := range cf.Entries {
+		if cf.Entries[key].f == nil {
+			// skip files that haven't been loaded, hash should already be defined
+			continue
+		}
 		h, err := cf.Entries[key].f.Hash()
 		if err != nil {
 			return "", err
@@ -123,6 +127,13 @@ func (cf *ComplexFile) Hash() (string, error) {
 	}
 	// return the hash
 	return hash, nil
+}
+
+// Raw returns the marshaled version of the complex file
+func (cf *ComplexFile) Raw() []byte {
+	// TODO: store and reuse raw content
+	b, _ := json.Marshal(cf)
+	return b
 }
 
 // TODO:

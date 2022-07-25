@@ -46,6 +46,13 @@ func (m *memory) Rename(tgt, src string) error {
 	return fmt.Errorf("file not found")
 }
 
+func (m *memory) Size(name string) int64 {
+	if data, ok := m.file[name]; ok {
+		return int64(len(*data))
+	}
+	return 0
+}
+
 func (m *memory) Write(name string) (io.WriteCloser, error) {
 	m.mu.Lock()
 	data := []byte{}

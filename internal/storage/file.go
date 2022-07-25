@@ -58,6 +58,13 @@ func (f *File) Read() (io.ReadCloser, error) {
 	return nil, fmt.Errorf("File has no backing file")
 }
 
+func (f *File) Size() int64 {
+	if f.hash != "" {
+		return f.backing.Size(f.hash)
+	}
+	return 0
+}
+
 func (f *File) Write() (io.WriteCloser, error) {
 	// write to a temp file
 	u := fmt.Sprintf("temp-%s", uuid.New().String())
@@ -79,6 +86,9 @@ func (fh *fileHash) Write(p []byte) (int, error) {
 }
 
 func (fh *fileHash) Close() error {
+	if fh.f.temp == "" {
+		return nil
+	}
 	// store hash
 	fh.f.hash = fh.hw.String()
 	// rename temp file to hash file

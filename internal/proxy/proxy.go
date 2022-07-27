@@ -14,6 +14,7 @@ import (
 	"github.com/httplock/httplock/internal/cert"
 	"github.com/httplock/httplock/internal/config"
 	"github.com/httplock/httplock/internal/storage"
+	"github.com/sirupsen/logrus"
 )
 
 type proxyHTTP struct {
@@ -129,6 +130,13 @@ func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *s
 	//http://golang.org/src/pkg/net/http/client.go
 	req.RequestURI = ""
 
+	// TODO: strip query
+	reqStore, reqDo, err := p.filterReq(req)
+	if err != nil {
+		p.conf.Log.WithFields(logrus.Fields{
+			"err": err,
+		}).Warn("serveWithCache: failed stripping req headers")
+	}
 	delHopHeaders(req.Header)
 
 	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
@@ -136,7 +144,7 @@ func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *s
 	}
 
 	// check if content is in cache
-	resp, err := storageGetResp(req, root, p.storage.Backing)
+	resp, err := storageGetResp(reqStore, root, p.storage.Backing)
 	if err == nil {
 		p.conf.Log.Println("Cache hit")
 	}
@@ -146,13 +154,15 @@ func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *s
 			p.client = &http.Client{}
 		}
 
-		resp, err = p.client.Do(req)
+		resp, err = p.client.Do(reqDo)
 		if err != nil {
 			http.Error(w, "Server Error", http.StatusInternalServerError)
 			p.conf.Log.Printf("serveWithCache: client.Do failed: %v", err)
 			// TODO: cache connection failed errors?
 			return
 		}
+		// TODO: strip response headers
+
 		// store result in cache
 		err = storagePutResp(req, resp, root, p.storage.Backing)
 		if err != nil {
@@ -190,6 +200,30 @@ func (p *proxy) getAuth(req *http.Request) (*storage.Dir, error) {
 		return nil, fmt.Errorf("get root failed on \"%s\": %v", pass, err)
 	}
 	return root, nil
+}
+
+func (p *proxy) filterReq(req *http.Request) (*http.Request, *http.Request, error) {
+	reqStrip := req
+	reqIgnore := req
+	reqStrip.Header = reqStrip.Header.Clone()
+	reqIgnore.Header = reqIgnore.Header.Clone()
+	for _, f := range p.conf.Proxy.Filters {
+		if (f.Method == "" || f.Method == req.Method) &&
+			(f.URLPrefix == nil || (f.URLPrefix != nil &&
+				f.URLPrefix.Scheme == req.URL.Scheme &&
+				f.URLPrefix.Host == req.URL.Host &&
+				strings.HasPrefix(req.URL.Path, f.URLPrefix.Path))) {
+			for header, action := range f.ReqHeader {
+				if action == config.ActionStrip {
+					reqStrip.Header.Del(header)
+					reqIgnore.Header.Del(header)
+				} else if action == config.ActionIgnore {
+					reqIgnore.Header.Del(header)
+				}
+			}
+		}
+	}
+	return reqIgnore, reqStrip, nil
 }
 
 // handle direct http proxy requests

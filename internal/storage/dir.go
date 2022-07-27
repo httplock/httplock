@@ -231,8 +231,6 @@ func (d *Dir) Hash() (string, error) {
 					return "", err
 				}
 				d.Entries[key].Hash = h
-			} else {
-				return "", fmt.Errorf("missing complex entry at %s", key)
 			}
 		case entryFile:
 			if d.Entries[key].file != nil {
@@ -268,6 +266,13 @@ func (d *Dir) Hash() (string, error) {
 	// save and return the hash
 	d.hash = hash
 	return hash, nil
+}
+
+// Raw returns the marshaled version of the directory
+func (d *Dir) Raw() []byte {
+	// TODO: store and reuse raw content
+	b, _ := json.Marshal(d)
+	return b
 }
 
 // TODO:

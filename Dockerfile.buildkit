@@ -21,9 +21,10 @@ RUN --mount=type=cache,id=gomod,target=/go/pkg/mod/cache \
     --mount=type=cache,id=goroot,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     make bin/httplock
-RUN mkdir -p /var/lib/httplock/data \
+RUN mkdir -p /var/lib/httplock/data /var/lib/httplock/tmp \
  && chown -R appuser:appuser /var/lib/httplock
 USER appuser
+ENV TMPDIR=/var/lib/httplock/tmp
 CMD [ "bin/httplock" ]
 
 FROM scratch as artifact
@@ -60,6 +61,7 @@ COPY --from=build --chown=appuser /home/appuser /home/appuser
 COPY --from=build --chown=appuser /var/lib/httplock /var/lib/httplock
 COPY --from=build /src/bin/httplock /httplock
 USER appuser
+ENV TMPDIR=/var/lib/httplock/tmp
 ENTRYPOINT [ "/httplock" ]
 
 ARG BUILD_DATE

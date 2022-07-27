@@ -16,9 +16,10 @@ CMD make bin/httplock && bin/httplock
 
 FROM dev as build
 RUN make bin/httplock
-RUN mkdir -p /var/lib/httplock/data \
+RUN mkdir -p /var/lib/httplock/data /var/lib/httplock/tmp \
  && chown -R appuser:appuser /var/lib/httplock
 USER appuser
+ENV TMPDIR=/var/lib/httplock/tmp
 CMD [ "bin/httplock" ]
 
 FROM ${REGISTRY}/library/alpine:${ALPINE_VER} as release-alpine
@@ -52,6 +53,7 @@ COPY --from=build --chown=appuser /home/appuser /home/appuser
 COPY --from=build --chown=appuser /var/lib/httplock /var/lib/httplock
 COPY --from=build /src/bin/httplock /httplock
 USER appuser
+ENV TMPDIR=/var/lib/httplock/tmp
 ENTRYPOINT [ "/httplock" ]
 
 ARG BUILD_DATE

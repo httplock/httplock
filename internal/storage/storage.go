@@ -15,6 +15,7 @@ import (
 const (
 	filenameIndexJSON = "index.json"
 	filenameIndexMD   = "index.md"
+	filenameHTTPLock  = "httplock"
 )
 
 type Storage struct {
@@ -29,6 +30,11 @@ type Index struct {
 
 type IndexRoot struct {
 	Used time.Time `json:"used,omitempty"`
+}
+
+// TODO: export
+type fileHTTPLock struct {
+	Version string `json:"httplockVersion"`
 }
 
 func New(c config.Config) (*Storage, error) {
@@ -217,7 +223,7 @@ func (s *Storage) WriteIndex() error {
 		// reset lastURL so handleComplex always outputs the first url under each root
 		lastURL = ""
 
-		err = s.walk([]string{}, root, walkFuncs{dir: handleDir, complex: handleComplex})
+		err = s.Walk([]string{}, root, WalkFuncs{Dir: handleDir, Complex: handleComplex})
 		if err != nil {
 			return err
 		}

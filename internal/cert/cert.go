@@ -54,7 +54,6 @@ func (c *Cert) CAGen(name string) error {
 	if c.ca != nil {
 		key = c.ca.PrivateKey
 		pubKey = c.ca.Leaf.PublicKey
-		// TODO: check if expiring
 	} else {
 		// k, err := genKeyRSA(4096)
 		k, err := genKeyEC()
@@ -148,6 +147,7 @@ func (c *Cert) CAGetPEM() ([]byte, error) {
 }
 
 func (c *Cert) LeafCert(names []string) (*tls.Certificate, error) {
+	now := time.Now().UTC()
 	if len(names) < 1 {
 		return nil, fmt.Errorf("missing name for leaf cert")
 	}
@@ -155,8 +155,7 @@ func (c *Cert) LeafCert(names []string) (*tls.Certificate, error) {
 		return nil, fmt.Errorf("CA needed to generate leaf certificates")
 	}
 	namesJoin := strings.Join(names, ", ")
-	if cert, ok := c.leafs[namesJoin]; ok {
-		// TODO: check if expiring
+	if cert, ok := c.leafs[namesJoin]; ok && now.Add(time.Hour).Before(cert.Leaf.NotAfter) {
 		return cert, nil
 	}
 
@@ -165,7 +164,6 @@ func (c *Cert) LeafCert(names []string) (*tls.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now().UTC()
 	tmpl := x509.Certificate{
 		SerialNumber:          c.serial,
 		Subject:               pkix.Name{CommonName: names[0]},

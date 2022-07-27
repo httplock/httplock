@@ -38,6 +38,15 @@ func (f *filesystem) Rename(tgt, src string) error {
 	return os.Rename(src, tgt)
 }
 
+func (f *filesystem) Size(name string) int64 {
+	name = filepath.Join(f.dir, filepath.Clean(name))
+	fi, err := os.Stat(name)
+	if err != nil {
+		return 0
+	}
+	return fi.Size()
+}
+
 func (f *filesystem) Write(name string) (io.WriteCloser, error) {
 	name = filepath.Join(f.dir, filepath.Clean(name))
 	return os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)

@@ -10,6 +10,7 @@ import (
 type Backing interface {
 	Read(name string) (io.ReadCloser, error)
 	Rename(tgt, src string) error
+	Size(name string) int64
 	Write(name string) (io.WriteCloser, error)
 	Delete(name string) error
 }

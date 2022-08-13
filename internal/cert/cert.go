@@ -13,7 +13,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"strings"
 	"time"
@@ -98,11 +97,11 @@ func (c *Cert) CAGen(name string) error {
 }
 
 func (c *Cert) CARead(keyRdr, certRdr io.Reader) error {
-	keyBytes, err := ioutil.ReadAll(keyRdr)
+	keyBytes, err := io.ReadAll(keyRdr)
 	if err != nil {
 		return err
 	}
-	certBytes, err := ioutil.ReadAll(certRdr)
+	certBytes, err := io.ReadAll(certRdr)
 	if err != nil {
 		return err
 	}

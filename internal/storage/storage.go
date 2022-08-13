@@ -1,16 +1,15 @@
-// Package storage handles content storage and retrieval with various backings
+// Package storage implements the various backend storage types
 package storage
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/httplock/httplock/internal/config"
-	"github.com/httplock/httplock/internal/storage/backing"
 )
+
+var errNotImplemented = errors.New("not implemented")
 
 const (
 	filenameIndexJSON = "index.json"
@@ -18,215 +17,53 @@ const (
 	filenameHTTPLock  = "httplock"
 )
 
-type Storage struct {
-	Backing backing.Backing
-	roots   map[string]*Dir
-	index   Index
-}
-
-type Index struct {
-	Roots map[string]*IndexRoot `json:"roots"`
-}
-
-type IndexRoot struct {
-	Used time.Time `json:"used,omitempty"`
-}
-
-// TODO: export
 type fileHTTPLock struct {
 	Version string `json:"httplockVersion"`
 }
 
-func New(c config.Config) (*Storage, error) {
-	b := backing.Get(c)
-	if b == nil {
-		return nil, fmt.Errorf("backing not found: %s", c.Storage.Backing)
-	}
-	s := Storage{
-		Backing: b,
-		roots:   map[string]*Dir{},
-		index: Index{
-			Roots: map[string]*IndexRoot{},
-		},
-	}
-	// load the index.json if it exists
-	ir, err := b.Read(filenameIndexJSON)
-	if err == nil {
-		defer ir.Close()
-		json.NewDecoder(ir).Decode(&s.index)
-	}
-	return &s, nil
+// Storage is implemented by various backings (memory, disk, OCI registry)
+type Storage interface {
+	// BlobOpen returns a reader for a blob
+	BlobOpen(blob string) (BlobReader, error)
+	// BlobCreate returns a writer for a blob
+	BlobCreate() (BlobWriter, error)
+	// Flush writes any data cached to the backend storage
+	Flush() error
+	// Index returns the current index
+	Index() Index
+	// PruneCache deletes any data from memory or cache that hasn't been recently accessed
+	PruneCache(time.Duration) error
+	// PruneStorage deletes any blobs that are not used by any root
+	PruneStorage() error
+	// RootCreate returns a new root using a uuid
+	RootCreate() (string, *Root, error)
+	// RootCreateFrom returns a new root using a uuid initialized from an existing hash
+	RootCreateFrom(hash string) (string, *Root, error)
+	// RootOpen returns an existing root
+	RootOpen(name string) (*Root, error)
+	// RootSave saves a root and adds the hash to the index
+	RootSave(r *Root) (string, error)
 }
 
-func (s *Storage) NewRoot() (string, *Dir, error) {
-	u := fmt.Sprintf("uuid:%s", uuid.New().String())
-	d, err := DirNew(s.Backing)
-	if err != nil {
-		return "", nil, err
-	}
-	s.roots[u] = d
-	return u, d, nil
+// Index lists the known roots stored by hash
+type Index struct {
+	Roots map[string]*IndexRoot `json:"roots"`
 }
 
-func (s *Storage) NewRootFrom(name string) (string, *Dir, error) {
-	var err error
-	u := fmt.Sprintf("uuid:%s", uuid.New().String())
-	d, ok := s.roots[name]
-	if !ok || d == nil {
-		d, err = DirLoad(s.Backing, name)
-	}
-	if err != nil {
-		return "", nil, err
-	}
-	s.roots[u] = d
-	return u, d, nil
+// IndexRoot describes the metadata for a root
+type IndexRoot struct {
+	Used time.Time `json:"used,omitempty"`
 }
 
-func (s *Storage) GetRoot(name string) (*Dir, error) {
-	d, ok := s.roots[name]
-	if ok && d != nil {
-		s.usedRoot(name)
-		return d, nil
-	}
-	d, err := DirLoad(s.Backing, name)
-	if err == nil {
-		s.usedRoot(name)
-		return d, nil
-	}
-	return nil, fmt.Errorf("root not found: %s", name)
+var registered = map[string]func(config.Config) (Storage, error){}
+
+func Register(name string, s func(config.Config) (Storage, error)) {
+	registered[name] = s
 }
 
-func (s *Storage) ListRoots() ([]string, error) {
-	keys := make([]string, 0, len(s.roots))
-	for k := range s.roots {
-		keys = append(keys, k)
+func Get(c config.Config) (Storage, error) {
+	if fn, ok := registered[c.Storage.Kind]; ok {
+		return fn(c)
 	}
-	// include entries from index that aren't in roots map
-	for h := range s.index.Roots {
-		if _, ok := s.roots[h]; !ok {
-			keys = append(keys, h)
-		}
-	}
-	return keys, nil
-}
-
-func (s *Storage) SaveRoot(name string) (string, error) {
-	d, ok := s.roots[name]
-	if !ok {
-		return "", fmt.Errorf("root not found: %s", name)
-	}
-	h, err := d.Hash()
-	if err != nil {
-		return "", fmt.Errorf("hashing root failed: %w", err)
-	}
-	s.roots[h] = d
-	// add entry to the index
-	s.usedRoot(h)
-	err = s.WriteIndex()
-	if err != nil {
-		return h, err
-	}
-	return h, nil
-}
-
-func (s *Storage) usedRoot(name string) {
-	// don't write uuid's to index
-	if strings.HasPrefix(name, "uuid:") {
-		return
-	}
-	if _, ok := s.index.Roots[name]; !ok {
-		s.index.Roots[name] = &IndexRoot{}
-	}
-	s.index.Roots[name].Used = time.Now()
-}
-
-func (s *Storage) WriteIndex() error {
-	// fmt.Printf("Writing index\n")
-	// s.Backing.Delete(filenameIndexJSON)
-	ij, err := s.Backing.Write(filenameIndexJSON)
-	if err != nil {
-		return err
-	}
-	defer ij.Close()
-	err = json.NewEncoder(ij).Encode(s.index)
-	if err != nil {
-		return err
-	}
-
-	// s.Backing.Delete(filenameIndexMD)
-	im, err := s.Backing.Write(filenameIndexMD)
-	if err != nil {
-		return err
-	}
-	defer im.Close()
-
-	// write header
-	_, err = fmt.Fprintf(im, "# Index\n")
-	if err != nil {
-		return err
-	}
-	// walk to get the URL's, show each request/response/body as links to individual files
-	lastURL := ""
-	handleDir := func(path []string, dir *Dir) error {
-		// fmt.Printf("walking dir %s\n", strings.Join(path, ""))
-		return nil
-	}
-	handleComplex := func(path []string, cf *ComplexFile) error {
-		if len(path) < 3 {
-			return fmt.Errorf("invalid path: %v", path)
-		}
-		curURL := fmt.Sprintf("`%s://%s/%s`", path[0], path[1], strings.Join(path[2:len(path)-1], ""))
-		name := path[len(path)-1]
-		if curURL != lastURL {
-			_, err := fmt.Fprintf(im, "- %s\n", curURL)
-			if err != nil {
-				return err
-			}
-		}
-		cfReq, ok := cf.Entries["meta-req"]
-		if !ok {
-			return fmt.Errorf("missing meta-req in %s", name)
-		}
-		cfResp, ok := cf.Entries["meta-resp"]
-		if !ok {
-			return fmt.Errorf("missing meta-resp in %s", name)
-		}
-		cfBody, ok := cf.Entries["body"]
-		if !ok {
-			return fmt.Errorf("missing body in %s", name)
-		}
-		_, err := fmt.Fprintf(im, "  - [Req](./%s) /\n    [Resp](./%s) /\n    [Body](./%s)\n", cfReq.Hash, cfResp.Hash, cfBody.Hash)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
-	// loop over each root to output
-	for rootName := range s.index.Roots {
-		root, ok := s.roots[rootName]
-		if !ok || root == nil {
-			root, err = s.GetRoot(rootName)
-			if err != nil {
-				return err
-			}
-		}
-		if root == nil {
-			return fmt.Errorf("root missing %s", rootName)
-		}
-
-		_, err = fmt.Fprintf(im, "\n## [%s](./%s)\n\n", rootName, rootName)
-		if err != nil {
-			return err
-		}
-
-		// reset lastURL so handleComplex always outputs the first url under each root
-		lastURL = ""
-
-		err = s.Walk([]string{}, root, WalkFuncs{Dir: handleDir, Complex: handleComplex})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return nil, fmt.Errorf("storage kind %s not supported", c.Storage.Kind)
 }

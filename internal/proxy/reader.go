@@ -3,10 +3,8 @@ package proxy
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 
 	"github.com/httplock/httplock/hasher"
-	"github.com/httplock/httplock/internal/storage/backing"
 )
 
 type teeReadCloser struct {
@@ -41,10 +39,11 @@ func (trc *teeReadCloser) Close() error {
 
 type hashReadCloser struct {
 	io.Reader
-	h string
+	h   string
+	buf []byte
 }
 
-func newHashRC(r io.ReadCloser, b backing.Backing) (*hashReadCloser, error) {
+func newHashRC(r io.ReadCloser) (*hashReadCloser, error) {
 	// if reader is nil, hash an empty string, and return a hashReadCloser with an empty buffer reader
 	if r == nil {
 		buf := []byte{}
@@ -56,6 +55,7 @@ func newHashRC(r io.ReadCloser, b backing.Backing) (*hashReadCloser, error) {
 		hrc := hashReadCloser{
 			Reader: br,
 			h:      h,
+			buf:    buf,
 		}
 		return &hrc, nil
 	}
@@ -64,7 +64,7 @@ func newHashRC(r io.ReadCloser, b backing.Backing) (*hashReadCloser, error) {
 	// otherwise stream the read through a hasher into a buffer, return a reader on the buffer
 	hr := hasher.NewReader(r)
 
-	buf, err := ioutil.ReadAll(hr)
+	buf, err := io.ReadAll(hr)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +75,11 @@ func newHashRC(r io.ReadCloser, b backing.Backing) (*hashReadCloser, error) {
 		h:      hr.String(),
 	}
 	return &hrc, nil
+}
+
+func (hrc *hashReadCloser) GetReader() (io.ReadCloser, error) {
+	hrc.Reader = bytes.NewReader(hrc.buf)
+	return hrc, nil
 }
 
 func (hrc *hashReadCloser) Close() error {

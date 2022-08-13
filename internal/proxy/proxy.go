@@ -23,18 +23,18 @@ type proxyHTTP struct {
 
 type proxyConnect struct {
 	p    *proxy
-	root *storage.Dir
+	root *storage.Root
 }
 
 type proxy struct {
 	conf    config.Config
 	certs   *cert.Cert
-	storage *storage.Storage
+	storage storage.Storage
 	client  *http.Client
 }
 
 // Start creates a new proxy service
-func Start(conf config.Config, s *storage.Storage, certs *cert.Cert) (*http.Server, error) {
+func Start(conf config.Config, s storage.Storage, certs *cert.Cert) (*http.Server, error) {
 	pe := proxy{
 		conf:    conf,
 		certs:   certs,
@@ -125,7 +125,7 @@ func requireAuthBasic(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusProxyAuthRequired)
 }
 
-func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *storage.Dir) {
+func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *storage.Root) {
 	//http: Request.RequestURI can't be set in client requests.
 	//http://golang.org/src/pkg/net/http/client.go
 	req.RequestURI = ""
@@ -144,7 +144,7 @@ func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *s
 	}
 
 	// check if content is in cache
-	resp, err := storageGetResp(reqStore, root, p.storage.Backing)
+	resp, err := storageGetResp(reqStore, p.storage, root)
 	if err == nil {
 		p.conf.Log.Println("Cache hit")
 	}
@@ -154,6 +154,8 @@ func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *s
 			p.client = &http.Client{}
 		}
 
+		reqDo.Body = reqStore.Body
+		reqDo.GetBody = reqStore.GetBody
 		resp, err = p.client.Do(reqDo)
 		if err != nil {
 			http.Error(w, "Server Error", http.StatusInternalServerError)
@@ -164,7 +166,7 @@ func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *s
 		// TODO: strip response headers
 
 		// store result in cache
-		err = storagePutResp(req, resp, root, p.storage.Backing)
+		err = storagePutResp(reqStore, resp, p.storage, root)
 		if err != nil {
 			p.conf.Log.Printf("Error on storagePutResp: %v\n", err)
 		}
@@ -178,11 +180,9 @@ func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *s
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
-	// TODO: unneeded, deferred above
-	resp.Body.Close()
 }
 
-func (p *proxy) getAuth(req *http.Request) (*storage.Dir, error) {
+func (p *proxy) getAuth(req *http.Request) (*storage.Root, error) {
 	// use proxy auth to get the correct token
 	auth := req.Header.Get("Proxy-Authorization")
 	if auth == "" {
@@ -195,7 +195,7 @@ func (p *proxy) getAuth(req *http.Request) (*storage.Dir, error) {
 	if user != "token" {
 		return nil, fmt.Errorf("auth user is not token: %s", user)
 	}
-	root, err := p.storage.GetRoot(pass)
+	root, err := p.storage.RootOpen(pass)
 	if err != nil {
 		return nil, fmt.Errorf("get root failed on \"%s\": %v", pass, err)
 	}
@@ -203,10 +203,10 @@ func (p *proxy) getAuth(req *http.Request) (*storage.Dir, error) {
 }
 
 func (p *proxy) filterReq(req *http.Request) (*http.Request, *http.Request, error) {
-	reqStrip := req
-	reqIgnore := req
-	reqStrip.Header = reqStrip.Header.Clone()
-	reqIgnore.Header = reqIgnore.Header.Clone()
+	reqStrip := *req
+	reqIgnore := *req
+	reqStrip.Header = req.Header.Clone()
+	reqIgnore.Header = req.Header.Clone()
 	for _, f := range p.conf.Proxy.Filters {
 		if (f.Method == "" || f.Method == req.Method) &&
 			(f.URLPrefix == nil || (f.URLPrefix != nil &&
@@ -223,7 +223,7 @@ func (p *proxy) filterReq(req *http.Request) (*http.Request, *http.Request, erro
 			}
 		}
 	}
-	return reqIgnore, reqStrip, nil
+	return &reqIgnore, &reqStrip, nil
 }
 
 // handle direct http proxy requests
@@ -288,13 +288,13 @@ func (ph *proxyHTTP) handleConnect(w http.ResponseWriter, req *http.Request) {
 	wh, ok := w.(http.Hijacker)
 	if !ok {
 		ph.p.conf.Log.Warn("Failed to configure writer as a hijacker")
-		http.Error(w, "connect unavailabe", http.StatusServiceUnavailable)
+		http.Error(w, "connect unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	raw, _, err := wh.Hijack()
 	if !ok {
 		ph.p.conf.Log.Warn("Failed to hijack: ", err)
-		http.Error(w, "connect unavailabe", http.StatusServiceUnavailable)
+		http.Error(w, "connect unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	defer raw.Close()

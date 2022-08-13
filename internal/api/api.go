@@ -16,11 +16,11 @@ import (
 type api struct {
 	conf  config.Config
 	certs *cert.Cert
-	s     *storage.Storage
+	s     storage.Storage
 }
 
 // Start runs an api service
-func Start(conf config.Config, s *storage.Storage, certs *cert.Cert) (*http.Server, error) {
+func Start(conf config.Config, s storage.Storage, certs *cert.Cert) (*http.Server, error) {
 	a := api{
 		conf:  conf,
 		certs: certs,
@@ -71,9 +71,9 @@ func (a *api) tokenCreate(w http.ResponseWriter, req *http.Request) {
 	var name string
 	var err error
 	if hash != "" {
-		name, _, err = a.s.NewRootFrom(hash)
+		name, _, err = a.s.RootCreateFrom(hash)
 	} else {
-		name, _, err = a.s.NewRoot()
+		name, _, err = a.s.RootCreate()
 	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -94,7 +94,7 @@ func (a *api) tokenDestroy(w http.ResponseWriter, req *http.Request) {
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
 	}
-	_, err := a.s.GetRoot(id)
+	_, err := a.s.RootOpen(id)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 	}
@@ -113,7 +113,11 @@ func (a *api) tokenSave(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// SaveRoot generates the hash and saves to a list of roots
-	h, err := a.s.SaveRoot(id)
+	root, err := a.s.RootOpen(id)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	h, err := a.s.RootSave(root)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		// TODO: properly escape error message, and probably don't pass through err
@@ -133,13 +137,13 @@ func (a *api) storageExport(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	root, err := a.s.GetRoot(id)
+	_, err := a.s.RootOpen(id)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	// create a tar writer
 	w.Header().Add("Content-Type", "application/x-gtar")
-	err = a.s.Export(root, w)
+	err = storage.Export(a.s, id, w)
 	if err != nil {
 		a.conf.Log.Warnf("failed to export: %w", err)
 	}
@@ -155,7 +159,7 @@ func (a *api) storageImport(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err := a.s.Import(id, req.Body)
+	err := storage.Import(a.s, id, req.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		a.conf.Log.Warnf("failed to import: %v", err)

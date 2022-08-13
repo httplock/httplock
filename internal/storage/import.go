@@ -11,13 +11,13 @@ import (
 	"path/filepath"
 )
 
-func (s *Storage) Import(id string, r io.Reader) error {
-	// make tmp dir, defer cleanup
-	dir, err := os.MkdirTemp("", "httplock-*")
+func Import(s Storage, id string, r io.Reader) error {
+	// make tmp tmpDir, defer cleanup
+	tmpDir, err := os.MkdirTemp("", "httplock-*")
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(dir)
+	defer os.RemoveAll(tmpDir)
 	// decompress
 	gr, err := gzip.NewReader(r)
 	if err != nil {
@@ -33,7 +33,7 @@ func (s *Storage) Import(id string, r io.Reader) error {
 			}
 			break
 		}
-		fn := filepath.Join(dir, filepath.Clean("/"+th.Name))
+		fn := filepath.Join(tmpDir, filepath.Clean("/"+th.Name))
 		switch th.Typeflag {
 		case tar.TypeDir:
 			err = os.MkdirAll(fn, fs.FileMode(th.Mode))
@@ -56,7 +56,7 @@ func (s *Storage) Import(id string, r io.Reader) error {
 		}
 	}
 	// verify httplock version
-	fh, err := os.Open(filepath.Join(dir, filenameHTTPLock))
+	fh, err := os.Open(filepath.Join(tmpDir, filenameHTTPLock))
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func (s *Storage) Import(id string, r io.Reader) error {
 	}
 
 	// load index.json
-	fh, err = os.Open(filepath.Join(dir, filenameIndexJSON))
+	fh, err = os.Open(filepath.Join(tmpDir, filenameIndexJSON))
 	if err != nil {
 		return err
 	}
@@ -93,134 +93,115 @@ func (s *Storage) Import(id string, r io.Reader) error {
 	if _, ok := ind.Roots[id]; !ok {
 		return err
 	}
-	// recursively load each directory, complex file, and file
-	newRoot, err := s.importDir(dir, id)
+
+	// recursively import the referenced blobs, and add the root
+	dir, err := importDir(s, id, tmpDir)
 	if err != nil {
 		return err
 	}
-	// add to list of known roots
-	s.roots[id] = newRoot
-	// add entry to the index
-	s.usedRoot(id)
-	err = s.WriteIndex()
+	newRoot := &Root{
+		storage: s,
+		dir:     dir,
+	}
+	hash, err := s.RootSave(newRoot)
 	if err != nil {
 		return err
+	}
+	if hash != id {
+		return fmt.Errorf("hash mismatch, expected %s, computed %s", id, hash)
 	}
 	return nil
 }
 
-func (s *Storage) importDir(baseDir, hash string) (*Dir, error) {
-	dir, err := DirNew(s.Backing)
+func importDir(s Storage, hash string, tmpDir string) (*Dir, error) {
+	dir := Dir{
+		hash: hash,
+	}
+	// read blob from tmpDir
+	fh, err := os.Open(filepath.Join(tmpDir, filepath.Clean("/"+hash)))
 	if err != nil {
 		return nil, err
 	}
-	fh, err := os.Open(filepath.Join(baseDir, filepath.Clean("/"+hash)))
+	dirBytes, err := io.ReadAll(fh)
+	fh.Close()
 	if err != nil {
 		return nil, err
 	}
-	defer fh.Close()
-	jd := json.NewDecoder(fh)
-	err = jd.Decode(&dir)
+	// parse into json
+	err = json.Unmarshal(dirBytes, &dir)
 	if err != nil {
 		return nil, err
 	}
-	for _, entry := range dir.Entries {
+	// push to storage
+	bw, err := s.BlobCreate()
+	if err != nil {
+		return nil, err
+	}
+	_, err = bw.Write(dirBytes)
+	bw.Close()
+	if err != nil {
+		return nil, err
+	}
+	// verify hash
+	bwHash, err := bw.Hash()
+	if err != nil {
+		return nil, err
+	}
+	if bwHash != hash {
+		return nil, fmt.Errorf("hash mismatch, computed %s, expected %s", bwHash, hash)
+	}
+	// recursively load entries
+	for name, entry := range dir.Entries {
 		switch entry.Kind {
-		case entryDir:
-			dirNew, err := s.importDir(baseDir, entry.Hash)
+		case KindDir:
+			eDir, err := importDir(s, entry.Hash, tmpDir)
 			if err != nil {
 				return nil, err
 			}
-			entry.dir = dirNew
-		case entryComplex:
-			cNew, err := s.importComplex(baseDir, entry.Hash)
+			entry.dir = eDir
+		case KindFile:
+			eFile, err := importFile(s, entry.Hash, tmpDir)
 			if err != nil {
 				return nil, err
 			}
-			entry.complex = cNew
-
-		case entryFile:
-			fNew, err := s.importFile(baseDir, entry.Hash)
-			if err != nil {
-				return nil, err
-			}
-			entry.file = fNew
-
+			entry.file = eFile
 		default:
-			return nil, fmt.Errorf("unhandled entry, hash %s, kind %v", hash, entry.Kind)
+			return nil, fmt.Errorf("unknown kind %d for entry %s", entry.Kind, name)
 		}
 	}
-	// verify hash
-	hashNew, err := dir.Hash()
-	if err != nil {
-		return nil, err
-	}
-	if hashNew != hash {
-		return nil, fmt.Errorf("hash mismatch, expected %s, read %s", hash, hashNew)
-	}
-	return dir, nil
+	return &dir, nil
 }
 
-func (s *Storage) importComplex(baseDir, hash string) (*ComplexFile, error) {
-	cFile, err := ComplexNew(s.Backing)
-	if err != nil {
-		return nil, err
+func importFile(s Storage, hash string, tmpDir string) (*File, error) {
+	file := File{
+		hash: hash,
 	}
-	fh, err := os.Open(filepath.Join(baseDir, filepath.Clean("/"+hash)))
+	// read blob from tmpDir
+	fh, err := os.Open(filepath.Join(tmpDir, filepath.Clean("/"+hash)))
 	if err != nil {
 		return nil, err
 	}
 	defer fh.Close()
-	jd := json.NewDecoder(fh)
-	err = jd.Decode(&cFile)
 	if err != nil {
 		return nil, err
 	}
-	for name, ce := range cFile.Entries {
-		cef, err := s.importFile(baseDir, ce.Hash)
-		if err != nil {
-			return nil, err
-		}
-		cFile.Entries[name].f = cef
-	}
-	// verify hash
-	hashNew, err := cFile.Hash()
+	// push to storage
+	bw, err := s.BlobCreate()
 	if err != nil {
 		return nil, err
 	}
-	if hashNew != hash {
-		return nil, fmt.Errorf("hash mismatch, expected %s, read %s", hash, hashNew)
-	}
-	return cFile, nil
-
-}
-
-func (s *Storage) importFile(baseDir, hash string) (*File, error) {
-	file, err := FileNew(s.Backing)
-	if err != nil {
-		return nil, err
-	}
-	fh, err := os.Open(filepath.Join(baseDir, filepath.Clean("/"+hash)))
-	if err != nil {
-		return nil, err
-	}
-	defer fh.Close()
-	fw, err := file.Write()
-	if err != nil {
-		return nil, err
-	}
-	_, err = io.Copy(fw, fh)
-	fw.Close()
+	_, err = io.Copy(bw, fh)
+	bw.Close()
 	if err != nil {
 		return nil, err
 	}
 	// verify hash
-	hashNew, err := file.Hash()
+	bwHash, err := bw.Hash()
 	if err != nil {
 		return nil, err
 	}
-	if hashNew != hash {
-		return nil, fmt.Errorf("hash mismatch, expected %s, read %s", hash, hashNew)
+	if bwHash != hash {
+		return nil, fmt.Errorf("hash mismatch, computed %s, expected %s", bwHash, hash)
 	}
-	return file, nil
+	return &file, nil
 }

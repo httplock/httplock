@@ -56,7 +56,7 @@ func runServer(cmd *cobra.Command, args []string) error {
 	}
 
 	// create storage object
-	s, err := storage.New(conf)
+	s, err := storage.Get(conf)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func runServer(cmd *cobra.Command, args []string) error {
 	apiSvc.Shutdown(ctx)
 
 	// update index files
-	err = s.WriteIndex()
+	err = s.Flush()
 	if err != nil {
 		return err
 	}

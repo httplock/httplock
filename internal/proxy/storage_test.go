@@ -2,20 +2,19 @@ package proxy
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
 
 	"github.com/httplock/httplock/internal/config"
 	"github.com/httplock/httplock/internal/storage"
-	"github.com/httplock/httplock/internal/storage/backing"
 )
 
 func TestStorage(t *testing.T) {
 	reqURL, _ := url.Parse("http://example.com/test")
 	req := http.Request{
-		Method:     "GET",
+		Method:     "POST",
 		Proto:      "HTTP/1.0",
 		ProtoMajor: 1,
 		ProtoMinor: 0,
@@ -25,6 +24,10 @@ func TestStorage(t *testing.T) {
 	req.Header.Add("Host", "example.com")
 	req.Header.Add("User-Agent", "test/agent")
 	req.Header.Add("Accept", "*/*")
+	reqBodyText := []byte(`{"data": "Greetings"}`)
+	reqBodyRdr := bytes.NewReader(reqBodyText)
+	req.Body = io.NopCloser(reqBodyRdr)
+	req.ContentLength = int64(len(reqBodyText))
 
 	resp := http.Response{
 		StatusCode: 200,
@@ -37,16 +40,24 @@ func TestStorage(t *testing.T) {
 	resp.Header.Add("Content-Type", "application/json")
 	respBodyText := []byte(`{"data": "Hello world"}`)
 	respBodyRdr := bytes.NewReader(respBodyText)
-	resp.Body = ioutil.NopCloser(respBodyRdr)
+	resp.Body = io.NopCloser(respBodyRdr)
 	resp.ContentLength = int64(len(respBodyText))
 
 	c := config.Config{}
-	c.Storage.Backing = "memory"
-	backing := backing.Get(c)
-	root, _ := storage.DirNew(backing)
+	c.Storage.Kind = "memory"
+	sMem, err := storage.Get(c)
+	if err != nil {
+		t.Errorf("failed setting up storage: %v", err)
+		return
+	}
+	_, root, err := sMem.RootCreate()
+	if err != nil {
+		t.Errorf("failed setting up root: %v", err)
+		return
+	}
 
 	t.Run("GetMissing", func(t *testing.T) {
-		getResp, err := storageGetResp(&req, root, backing)
+		getResp, err := storageGetResp(&req, sMem, root)
 		if err == nil {
 			t.Errorf("Get a missing value unexpected succeeded: %v", getResp)
 			return
@@ -55,17 +66,28 @@ func TestStorage(t *testing.T) {
 	})
 
 	t.Run("PutResponse", func(t *testing.T) {
-		err := storagePutResp(&req, &resp, root, backing)
+		// sending a request will close the body
+		err = req.Body.Close()
+		if err != nil {
+			t.Errorf("Failed to close req body: %v", err)
+		}
+		err = storagePutResp(&req, &resp, sMem, root)
 		if err != nil {
 			t.Errorf("Failed to put response in cache: %v", err)
 		}
 		// body must be read and closed to finish storage
-		ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
+		_, err = io.ReadAll(resp.Body)
+		if err != nil {
+			t.Errorf("Failed to read resp: %v", err)
+		}
+		err = resp.Body.Close()
+		if err != nil {
+			t.Errorf("Failed to close resp body: %v", err)
+		}
 	})
 
 	t.Run("GetResponse", func(t *testing.T) {
-		getResp, err := storageGetResp(&req, root, backing)
+		getResp, err := storageGetResp(&req, sMem, root)
 		if err != nil {
 			t.Errorf("Failed to retrieve response: %v", err)
 			return

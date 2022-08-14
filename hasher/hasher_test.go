@@ -2,7 +2,7 @@ package hasher
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"testing"
 )
 
@@ -28,7 +28,7 @@ func TestHashReader(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			buf := bytes.NewBuffer(tt.input)
 			h := NewReader(buf)
-			result, err := ioutil.ReadAll(h)
+			result, err := io.ReadAll(h)
 			if err != nil {
 				t.Errorf("Error reading from hasher: %v", err)
 			}

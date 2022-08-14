@@ -4,14 +4,21 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 )
 
-func (s *Storage) Export(root *Dir, w io.Writer) error {
+// Export outputs a tgz to a writer for a specific root
+func Export(s Storage, id string, w io.Writer) error {
 	gw := gzip.NewWriter(w)
 	defer gw.Close()
 	tw := tar.NewWriter(gw)
 	defer tw.Close()
+
+	root, err := s.RootOpen(id)
+	if err != nil {
+		return err
+	}
 
 	// add httplock file with version
 	fhl := fileHTTPLock{Version: "1.0"}
@@ -25,13 +32,9 @@ func (s *Storage) Export(root *Dir, w io.Writer) error {
 	}
 
 	// add index.json with root array entry
-	rHash, err := root.Hash()
-	if err != nil {
-		return err
-	}
 	ind := Index{
 		Roots: map[string]*IndexRoot{
-			rHash: {},
+			root.hash: {},
 		},
 	}
 	ij, err := json.Marshal(ind)
@@ -43,41 +46,51 @@ func (s *Storage) Export(root *Dir, w io.Writer) error {
 		return err
 	}
 
-	// recursively add child entries from the root
-	s.Walk([]string{}, root, WalkFuncs{
-		Dir: func(path []string, dir *Dir) error {
-			hash, err := dir.Hash()
+	// add index.md
+	report, err := root.report()
+	if err != nil {
+		return err
+	}
+	err = tarAdd(tw, filenameIndexMD, []byte("# Index\n\n"+report))
+	if err != nil {
+		return err
+	}
+
+	err = root.Walk(WalkFns{
+		fnDir: func(d *Dir) error {
+			err := root.hashDir(d)
 			if err != nil {
 				return err
 			}
-			raw := dir.Raw()
-			tarAdd(tw, hash, raw)
-			return nil
+			if d.hash == "" {
+				return fmt.Errorf("hash missing for directory")
+			}
+			br, err := s.BlobOpen(d.hash)
+			if err != nil {
+				return err
+			}
+			defer br.Close()
+			return tarAddReader(tw, d.hash, br.Size(), br)
 		},
-		Complex: func(path []string, cf *ComplexFile) error {
-			hash, err := cf.Hash()
+		fnFile: func(f *File) error {
+			err := root.hashFile(f)
 			if err != nil {
 				return err
 			}
-			raw := cf.Raw()
-			tarAdd(tw, hash, raw)
-			return nil
-		},
-		File: func(path []string, file *File) error {
-			hash, err := file.Hash()
+			if f.hash == "" {
+				return fmt.Errorf("hash missing for file")
+			}
+			br, err := s.BlobOpen(f.hash)
 			if err != nil {
 				return err
 			}
-			size := file.Size()
-			rc, err := file.Read()
-			if err != nil {
-				return err
-			}
-			defer rc.Close()
-			tarAddReader(tw, hash, size, rc)
-			return nil
+			defer br.Close()
+			return tarAddReader(tw, f.hash, br.Size(), br)
 		},
 	})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

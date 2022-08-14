@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"strings"
@@ -49,19 +48,19 @@ func (a *cfAction) UnmarshalText(b []byte) error {
 }
 
 type Config struct {
-	API     cAPI           `json:"api"`
-	Proxy   cProxy         `json:"proxy"`
-	Storage cStorage       `json:"storage"`
+	API     API            `json:"api"`
+	Proxy   Proxy          `json:"proxy"`
+	Storage Storage        `json:"storage"`
 	Log     *logrus.Logger `json:"-"`
 }
-type cAPI struct {
+type API struct {
 	Addr string `json:"addr"`
 }
-type cProxy struct {
-	Addr    string    `json:"addr"`
-	Filters []cFilter `json:"filters"`
+type Proxy struct {
+	Addr    string   `json:"addr"`
+	Filters []Filter `json:"filters"`
 }
-type cFilter struct {
+type Filter struct {
 	URLPrefix  *url.URL            `json:"urlPrefix"`
 	Method     string              `json:"method"`
 	ReqHeader  map[string]cfAction `json:"reqHeader"`
@@ -69,11 +68,8 @@ type cFilter struct {
 	ReqQuery   map[string]cfAction `json:"reqQuery"`
 	BodyForm   map[string]cfAction `json:"bodyForm"`
 }
-type cStorage struct {
-	Backing    string `json:"backing"`
-	Filesystem cFS    `json:"filesystem"`
-}
-type cFS struct {
+type Storage struct {
+	Kind      string `json:"kind"`
 	Directory string `json:"directory"`
 }
 
@@ -86,10 +82,10 @@ type ConfigOpts struct {
 
 func New(opts ConfigOpts) (Config, error) {
 	c := Config{
-		Log: &logrus.Logger{Out: ioutil.Discard},
+		Log: &logrus.Logger{Out: io.Discard},
 	}
 	// configure defaults
-	c.Storage.Backing = "memory"
+	c.Storage.Kind = "memory"
 	c.API.Addr = "127.0.0.1:8081"
 	c.Proxy.Addr = "127.0.0.1:8080"
 

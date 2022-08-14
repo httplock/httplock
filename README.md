@@ -22,32 +22,32 @@ cat >config.json <<EOF
     "addr": ":8080"
   },
   "storage": {
-    "backing": "filesystem",
-    "filesystem": {
-      "directory": "/var/lib/httplock/data"
-    }
+    "kind": "filesystem",
+    "directory": "/var/lib/httplock/data"
   }
 }
 EOF
 
-docker run -d --name httplock-proxy \
-  -v "$(pwd)/quickstart/config.json:/httplock/config.json" \
+docker run -d --rm --name httplock-proxy \
+  -v "$(pwd)/config.json:/var/lib/httplock/config.json" \
   -v "httplock-data:/var/lib/httplock/data" \
   -p "127.0.0.1:8080:8080" -p "127.0.0.1:8081:8081" \
-  httplock/httplock server -c /httplock/config.json
+  httplock/httplock server -c /var/lib/httplock/config.json
 
 uuid=$(curl -sX POST http://127.0.0.1:8081/token | jq -r .uuid)
 echo "${uuid}"
-curl -s http://127.0.0.1:8081/ca >local-test/ca.pem
+curl -s http://127.0.0.1:8081/ca >ca.pem
 
 http_proxy="http://token:${uuid}@127.0.0.1:8080" \
   https_proxy="http://token:${uuid}@127.0.0.1:8080" \
-  curl -v -i https://google.com/
+  curl -v --cacert ca.pem -i https://www.google.com/
 
 hash=$(curl -sX POST "http://127.0.0.1:8081/token/${uuid}/save" | jq -r .hash)
 echo "${hash}"
 
 http_proxy="http://token:${hash}@127.0.0.1:8080" \
   https_proxy="http://token:${hash}@127.0.0.1:8080" \
-  curl -v -i https://google.com/
+  curl -v --cacert ca.pem -i https://www.google.com/
+
+docker stop httplock-proxy
 ```

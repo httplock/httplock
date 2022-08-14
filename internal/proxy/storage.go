@@ -3,13 +3,17 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"strings"
 
 	"github.com/httplock/httplock/hasher"
 	"github.com/httplock/httplock/internal/storage"
-	"github.com/httplock/httplock/internal/storage/backing"
+)
+
+const (
+	extReqHead  = "-req-head"
+	extReqBody  = "-req-body"
+	extRespHead = "-resp-head"
+	extRespBody = "-resp-body"
 )
 
 // TODO: add headers that should not be used in cache calculations
@@ -44,22 +48,16 @@ func includeHeader(header string) bool {
 // convert a request to a path
 func storageGenDirPath(req *http.Request) ([]string, error) {
 	// returned path consists of:
-	// protocol (http/https)
 	// host
-	// url path/file
+	// url scheme/host/path/file
 	// this is only for the directory, filename is a request hash
-	pathEls := []string{req.URL.Scheme, req.URL.Host}
-	urlPathEls := strings.SplitAfter(strings.TrimPrefix(req.URL.Path, "/"), "/")
-	// trim trailing blank entry
-	if len(urlPathEls) > 0 && urlPathEls[len(urlPathEls)-1] == "" {
-		urlPathEls = urlPathEls[:len(urlPathEls)-1]
-	}
-	pathEls = append(pathEls, urlPathEls...)
-
-	return pathEls, nil
+	u := *req.URL
+	u.RawQuery = ""
+	return []string{req.URL.Host, u.String()}, nil
 }
 
-func storageGenFilename(req *http.Request, b backing.Backing) (string, error) {
+// storageGenReqHash computes a hash on the request
+func storageGenReqHash(req *http.Request) (string, error) {
 	// returned path consists of:
 	// request hash: method (get/head/post/put), query args, filtered headers
 	hashItems := storageMetaReq{
@@ -75,13 +73,20 @@ func storageGenFilename(req *http.Request, b backing.Backing) (string, error) {
 	if hrc, ok := req.Body.(*hashReadCloser); ok && hrc != nil {
 		hashItems.BodyHash = hrc.h
 	} else {
-		hrc, err := newHashRC(req.Body, b)
+		if req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return "", fmt.Errorf("getBody: %w", err)
+			}
+			req.Body = body
+		}
+		hrc, err := newHashRC(req.Body)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("newHashRC: %w", err)
 		}
 		hashItems.BodyHash = hrc.h
 		req.Body = hrc
-		req.GetBody = nil
+		req.GetBody = hrc.GetReader
 	}
 
 	for k := range req.Header {
@@ -91,59 +96,44 @@ func storageGenFilename(req *http.Request, b backing.Backing) (string, error) {
 	}
 	j, err := json.Marshal(hashItems)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("json marshal: %w", err)
 	}
 	h, err := hasher.FromBytes(j)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("hash from bytes: %w", err)
 	}
 	return h, nil
 }
 
-// read the CF if it exists
-func storageGetResp(req *http.Request, root *storage.Dir, b backing.Backing) (*http.Response, error) {
+// storageGetResp returns the response if it's cached
+func storageGetResp(req *http.Request, s storage.Storage, root *storage.Root) (*http.Response, error) {
+	// hash must always be generated on the GetResp to replace the req body with a hashing version
+	reqHash, err := storageGenReqHash(req)
+	if err != nil {
+		return nil, err
+	}
 	dirElems, err := storageGenDirPath(req)
 	if err != nil {
 		return nil, err
 	}
-	curDir := root
-	for _, el := range dirElems {
-		nextDir, err := curDir.GetDir(el)
-		if err != nil {
-			return nil, fmt.Errorf("not found: %w", err)
-		}
-		curDir = nextDir
-	}
-	fileName, err := storageGenFilename(req, b)
+	respHeadBR, err := root.Read(append(dirElems, reqHash+extRespHead))
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := curDir.Entries[fileName]; !ok {
-		return nil, fmt.Errorf("not found")
-	}
-	cf, err := curDir.GetComplex(fileName)
+	defer respHeadBR.Close()
+	respBodyBR, err := root.Read(append(dirElems, reqHash+extRespBody))
 	if err != nil {
 		return nil, err
 	}
 
+	metaResp := storageMetaResp{}
+	err = json.NewDecoder(respHeadBR).Decode(&metaResp)
+	if err != nil {
+		respBodyBR.Close()
+		return nil, err
+	}
 	resp := http.Response{
 		Header: http.Header{},
-	}
-
-	// copy metadata into response
-	respR, err := cf.Read("meta-resp")
-	if err != nil {
-		return nil, err
-	}
-	defer respR.Close()
-	mrj, err := ioutil.ReadAll(respR)
-	if err != nil {
-		return nil, err
-	}
-	metaResp := storageMetaResp{}
-	err = json.Unmarshal(mrj, &metaResp)
-	if err != nil {
-		return nil, err
 	}
 	if metaResp.Headers != nil {
 		for k, vv := range metaResp.Headers {
@@ -156,54 +146,23 @@ func storageGetResp(req *http.Request, root *storage.Dir, b backing.Backing) (*h
 		resp.StatusCode = metaResp.StatusCode
 		resp.Status = http.StatusText(metaResp.StatusCode)
 	}
-
-	// return reader for body
-	respBodyR, err := cf.Read("body")
-	if err != nil {
-		return nil, err
-	}
-	resp.Body = respBodyR
+	resp.Body = respBodyBR
 
 	return &resp, nil
 }
 
 // write a CF based on the response
 // request and response body will be read, these should be replaced with tee readers to process the data elsewhere
-func storagePutResp(req *http.Request, resp *http.Response, root *storage.Dir, b backing.Backing) error {
+func storagePutResp(req *http.Request, resp *http.Response, s storage.Storage, root *storage.Root) error {
 	dirElems, err := storageGenDirPath(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("generating path: %w", err)
 	}
-	fileName, err := storageGenFilename(req, b)
+	reqHash, err := storageGenReqHash(req)
 	if err != nil {
-		return err
-	}
-	curDir := root
-	for _, el := range dirElems {
-		nextDir, err := curDir.GetDir(el)
-		if err != nil {
-			// create dir if GetDir fails
-			nextDir, err = curDir.CreateDir(el)
-		}
-		if err != nil {
-			return err
-		}
-		curDir = nextDir
-	}
-	if _, ok := curDir.Entries[fileName]; ok {
-		return fmt.Errorf("entry already exists")
-	}
-	cf, err := curDir.CreateComplex(fileName)
-	if err != nil {
-		return err
+		return fmt.Errorf("generating req hash: %w", err)
 	}
 
-	// add meta data on the request for auditing
-	reqW, err := cf.Write("meta-req")
-	if err != nil {
-		return err
-	}
-	defer reqW.Close()
 	metaReq := storageMetaReq{
 		Proto:   req.Proto,
 		Method:  req.Method,
@@ -213,46 +172,43 @@ func storagePutResp(req *http.Request, resp *http.Response, root *storage.Dir, b
 		CL:      req.ContentLength,
 	}
 	// include request body hash
+	// TODO: store entire request body, not just the hash, to allow future replay/diff
 	if hbr, ok := req.Body.(*hashReadCloser); ok && hbr != nil {
 		metaReq.BodyHash = hbr.h
 	} else {
 		return fmt.Errorf("body reader is not a hashReadCloser")
 	}
-	mrj, err := json.Marshal(metaReq)
-	if err != nil {
-		return err
-	}
-	_, err = reqW.Write(mrj)
-	if err != nil {
-		return err
-	}
-
-	// add meta data on the response
-	respW, err := cf.Write("meta-resp")
-	if err != nil {
-		return err
-	}
-	defer respW.Close()
 	metaResp := storageMetaResp{
 		Headers:    resp.Header,
 		StatusCode: resp.StatusCode,
 	}
-	mrj, err = json.Marshal(metaResp)
+
+	reqHeadBW, err := root.Write(append(dirElems, reqHash+extReqHead))
 	if err != nil {
-		return err
+		return fmt.Errorf("root write for req head: %w", err)
 	}
-	_, err = respW.Write(mrj)
+	err = json.NewEncoder(reqHeadBW).Encode(metaReq)
+	reqHeadBW.Close()
 	if err != nil {
-		return err
+		return fmt.Errorf("json encode req: %w", err)
+	}
+
+	respHeadBW, err := root.Write(append(dirElems, reqHash+extRespHead))
+	if err != nil {
+		return fmt.Errorf("root write for resp head: %w", err)
+	}
+	err = json.NewEncoder(respHeadBW).Encode(metaResp)
+	respHeadBW.Close()
+	if err != nil {
+		return fmt.Errorf("json encode resp: %w", err)
 	}
 
 	// replace resp.Body with a tee reader to cache body contents
-	respBodyW, err := cf.Write("body")
+	respBodyBW, err := root.Write(append(dirElems, reqHash+extRespBody))
 	if err != nil {
-		return err
+		return fmt.Errorf("root write for resp body: %w", err)
 	}
-	teeR := newTeeRC(resp.Body, respBodyW)
-	resp.Body = teeR
+	resp.Body = newTeeRC(resp.Body, respBodyBW)
 
 	return nil
 }

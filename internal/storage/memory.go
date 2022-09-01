@@ -95,6 +95,7 @@ func (m *MemStorage) RootCreateFrom(hash string) (string, *Root, error) {
 		return "", nil, fmt.Errorf("hash not found in index: %s", hash)
 	}
 	root := newRootHash(m, hash)
+	root.readonly = false
 	m.roots[u] = root
 	return u, root, nil
 }

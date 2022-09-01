@@ -9,7 +9,10 @@ import (
 	"github.com/httplock/httplock/internal/config"
 )
 
-var errNotImplemented = errors.New("not implemented")
+var (
+	errNotImplemented = errors.New("not implemented")
+	errReadOnly       = errors.New("read only")
+)
 
 const (
 	filenameIndexJSON = "index.json"

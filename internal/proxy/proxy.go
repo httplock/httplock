@@ -131,13 +131,13 @@ func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *s
 	req.RequestURI = ""
 
 	// TODO: strip query
+	delHopHeaders(req.Header)
 	reqStore, reqDo, err := p.filterReq(req)
 	if err != nil {
 		p.conf.Log.WithFields(logrus.Fields{
 			"err": err,
 		}).Warn("serveWithCache: failed stripping req headers")
 	}
-	delHopHeaders(req.Header)
 
 	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
 		appendHostToXForwardHeader(req.Header, clientIP)
@@ -149,7 +149,15 @@ func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *s
 		p.conf.Log.Println("Cache hit")
 	}
 	if err != nil {
-		p.conf.Log.Printf("Cache miss: %s, %v", req.URL.String(), err)
+		p.conf.Log.Printf("Cache miss req: %s, %v", reqStore.URL.String(), err)
+		p.conf.Log.Printf("Cache miss headers: %v", reqStore.Header)
+		// if storage is readonly, return a failure
+		if root.ReadOnly() {
+			w.WriteHeader(http.StatusBadGateway)
+			w.Write([]byte("httplock is readonly"))
+			return
+		}
+
 		if p.client == nil {
 			p.client = &http.Client{}
 		}
@@ -243,6 +251,7 @@ func (ph *proxyHTTP) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// use proxy auth to get the correct token
+	// TODO: cache getAuth response
 	root, err := ph.p.getAuth(req)
 	if err != nil {
 		ph.p.conf.Log.Println(err)

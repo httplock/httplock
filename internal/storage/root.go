@@ -10,9 +10,10 @@ import (
 )
 
 type Root struct {
-	storage Storage
-	hash    string
-	dir     *Dir
+	storage  Storage
+	hash     string
+	dir      *Dir
+	readonly bool
 }
 
 type Dir struct {
@@ -50,8 +51,9 @@ func newRoot(s Storage) *Root {
 }
 func newRootHash(s Storage, hash string) *Root {
 	return &Root{
-		storage: s,
-		hash:    hash,
+		storage:  s,
+		hash:     hash,
+		readonly: true,
 	}
 }
 
@@ -143,9 +145,14 @@ func (r *Root) Read(path []string) (BlobReader, error) {
 	return r.storage.BlobOpen(entry.Hash)
 }
 
+// ReadOnly returns true if the root is read-only (loaded from an immutable hash)
+func (r *Root) ReadOnly() bool {
+	return r.readonly
+}
+
 // Save computes and returns the hash of the root
 func (r *Root) Save() (string, error) {
-	if r.dir != nil {
+	if !r.readonly && r.dir != nil {
 		err := r.hashDir(r.dir)
 		if err != nil {
 			return "", err
@@ -209,6 +216,10 @@ func (r *Root) walkDir(fns WalkFns, d *Dir) error {
 }
 
 func (r *Root) Write(path []string) (BlobWriter, error) {
+	// fail if root is read-only
+	if r.readonly {
+		return nil, errReadOnly
+	}
 	dCur, err := r.getDir(path[:len(path)-1], true)
 	if err != nil {
 		return nil, err
@@ -245,6 +256,10 @@ func (r *Root) Write(path []string) (BlobWriter, error) {
 }
 
 func (r *Root) getDir(path []string, write bool) (*Dir, error) {
+	// fail if root is read-only
+	if r.readonly && write {
+		return nil, errReadOnly
+	}
 	err := r.loadRoot()
 	if err != nil {
 		return nil, err

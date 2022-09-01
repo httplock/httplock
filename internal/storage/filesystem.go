@@ -140,6 +140,7 @@ func (fs *FSStorage) RootCreateFrom(hash string) (string, *Root, error) {
 		return "", nil, fmt.Errorf("hash not found in index: %s", hash)
 	}
 	root := newRootHash(fs, hash)
+	root.readonly = false
 	fs.roots[u] = root
 	return u, root, nil
 }

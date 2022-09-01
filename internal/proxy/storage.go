@@ -3,6 +3,7 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/httplock/httplock/hasher"
@@ -57,7 +58,7 @@ func storageGenDirPath(req *http.Request) ([]string, error) {
 }
 
 // storageGenReqHash computes a hash on the request
-func storageGenReqHash(req *http.Request) (string, error) {
+func storageGenReqHash(req *http.Request, s storage.Storage, root *storage.Root) (string, string, error) {
 	// returned path consists of:
 	// request hash: method (get/head/post/put), query args, filtered headers
 	hashItems := storageMetaReq{
@@ -73,20 +74,43 @@ func storageGenReqHash(req *http.Request) (string, error) {
 	if hrc, ok := req.Body.(*hashReadCloser); ok && hrc != nil {
 		hashItems.BodyHash = hrc.h
 	} else {
+		// read body into storage
+		bw, err := s.BlobCreate()
+		if err != nil {
+			return "", "", err
+		}
 		if req.GetBody != nil {
 			body, err := req.GetBody()
 			if err != nil {
-				return "", fmt.Errorf("getBody: %w", err)
+				return "", "", fmt.Errorf("getBody: %w", err)
 			}
 			req.Body = body
 		}
-		hrc, err := newHashRC(req.Body)
+		_, err = io.Copy(bw, req.Body)
 		if err != nil {
-			return "", fmt.Errorf("newHashRC: %w", err)
+			return "", "", err
 		}
-		hashItems.BodyHash = hrc.h
+		if err := req.Body.Close(); err != nil {
+			return "", "", err
+		}
+		if err := bw.Close(); err != nil {
+			return "", "", err
+		}
+		hash, err := bw.Hash()
+		if err != nil {
+			return "", "", err
+		}
+		br, err := s.BlobOpen(hash)
+		if err != nil {
+			return "", "", err
+		}
+		hrc, err := newHashRC(br, hash, func() (io.ReadCloser, error) { return s.BlobOpen(hash) })
+		if err != nil {
+			return "", "", err
+		}
 		req.Body = hrc
-		req.GetBody = hrc.GetReader
+		req.GetBody = hrc.Reset
+		hashItems.BodyHash = hrc.h
 	}
 
 	for k := range req.Header {
@@ -96,19 +120,19 @@ func storageGenReqHash(req *http.Request) (string, error) {
 	}
 	j, err := json.Marshal(hashItems)
 	if err != nil {
-		return "", fmt.Errorf("json marshal: %w", err)
+		return "", "", fmt.Errorf("json marshal: %w", err)
 	}
 	h, err := hasher.FromBytes(j)
 	if err != nil {
-		return "", fmt.Errorf("hash from bytes: %w", err)
+		return "", "", fmt.Errorf("hash from bytes: %w", err)
 	}
-	return h, nil
+	return h, hashItems.BodyHash, nil
 }
 
 // storageGetResp returns the response if it's cached
 func storageGetResp(req *http.Request, s storage.Storage, root *storage.Root) (*http.Response, error) {
 	// hash must always be generated on the GetResp to replace the req body with a hashing version
-	reqHash, err := storageGenReqHash(req)
+	reqHash, _, err := storageGenReqHash(req, s, root)
 	if err != nil {
 		return nil, err
 	}
@@ -158,25 +182,19 @@ func storagePutResp(req *http.Request, resp *http.Response, s storage.Storage, r
 	if err != nil {
 		return fmt.Errorf("generating path: %w", err)
 	}
-	reqHash, err := storageGenReqHash(req)
+	reqHash, reqBodyHash, err := storageGenReqHash(req, s, root)
 	if err != nil {
 		return fmt.Errorf("generating req hash: %w", err)
 	}
 
 	metaReq := storageMetaReq{
-		Proto:   req.Proto,
-		Method:  req.Method,
-		User:    req.URL.User.String(),
-		Query:   req.URL.Query().Encode(),
-		Headers: req.Header,
-		CL:      req.ContentLength,
-	}
-	// include request body hash
-	// TODO: store entire request body, not just the hash, to allow future replay/diff
-	if hbr, ok := req.Body.(*hashReadCloser); ok && hbr != nil {
-		metaReq.BodyHash = hbr.h
-	} else {
-		return fmt.Errorf("body reader is not a hashReadCloser")
+		Proto:    req.Proto,
+		Method:   req.Method,
+		User:     req.URL.User.String(),
+		Query:    req.URL.Query().Encode(),
+		Headers:  req.Header,
+		BodyHash: reqBodyHash,
+		CL:       req.ContentLength,
 	}
 	metaResp := storageMetaResp{
 		Headers:    resp.Header,
@@ -191,6 +209,11 @@ func storagePutResp(req *http.Request, resp *http.Response, s storage.Storage, r
 	reqHeadBW.Close()
 	if err != nil {
 		return fmt.Errorf("json encode req: %w", err)
+	}
+
+	err = root.Link(append(dirElems, reqHash+extReqBody), reqBodyHash)
+	if err != nil {
+		return fmt.Errorf("root link for req body: %w", err)
 	}
 
 	respHeadBW, err := root.Write(append(dirElems, reqHash+extRespHead))

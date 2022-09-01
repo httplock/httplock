@@ -1,10 +1,7 @@
 package proxy
 
 import (
-	"bytes"
 	"io"
-
-	"github.com/httplock/httplock/hasher"
 )
 
 type teeReadCloser struct {
@@ -37,52 +34,26 @@ func (trc *teeReadCloser) Close() error {
 	return nil
 }
 
+type newRC func() (io.ReadCloser, error)
 type hashReadCloser struct {
-	io.Reader
-	h   string
-	buf []byte
+	io.ReadCloser
+	h     string
+	newRC newRC
 }
 
-func newHashRC(r io.ReadCloser) (*hashReadCloser, error) {
-	// if reader is nil, hash an empty string, and return a hashReadCloser with an empty buffer reader
-	if r == nil {
-		buf := []byte{}
-		br := bytes.NewReader(buf)
-		h, err := hasher.FromBytes(buf)
-		if err != nil {
-			return nil, err
-		}
-		hrc := hashReadCloser{
-			Reader: br,
-			h:      h,
-			buf:    buf,
-		}
-		return &hrc, nil
-	}
-	// TODO: always write to a tmp file in the storage backing, hash the content, rename to hash value, and using backing reader of hash
+func newHashRC(r io.ReadCloser, h string, nrc newRC) (*hashReadCloser, error) {
+	return &hashReadCloser{
+		ReadCloser: r,
+		h:          h,
+		newRC:      nrc,
+	}, nil
+}
 
-	// otherwise stream the read through a hasher into a buffer, return a reader on the buffer
-	hr := hasher.NewReader(r)
-
-	buf, err := io.ReadAll(hr)
+func (hrc *hashReadCloser) Reset() (io.ReadCloser, error) {
+	rc, err := hrc.newRC()
 	if err != nil {
-		return nil, err
+		return hrc, err
 	}
-	r.Close()
-	br := bytes.NewReader(buf)
-	hrc := hashReadCloser{
-		Reader: br,
-		h:      hr.String(),
-	}
-	return &hrc, nil
-}
-
-func (hrc *hashReadCloser) GetReader() (io.ReadCloser, error) {
-	hrc.Reader = bytes.NewReader(hrc.buf)
+	hrc.ReadCloser = rc
 	return hrc, nil
-}
-
-func (hrc *hashReadCloser) Close() error {
-	// TODO: if saving large files to the backend, close and delete the temporary file
-	return nil
 }

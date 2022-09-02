@@ -10,15 +10,15 @@ import (
 
 // Export outputs a tgz to a writer for a specific root
 func Export(s Storage, id string, w io.Writer) error {
-	gw := gzip.NewWriter(w)
-	defer gw.Close()
-	tw := tar.NewWriter(gw)
-	defer tw.Close()
-
 	root, err := s.RootOpen(id)
 	if err != nil {
 		return err
 	}
+
+	gw := gzip.NewWriter(w)
+	defer gw.Close()
+	tw := tar.NewWriter(gw)
+	defer tw.Close()
 
 	// add httplock file with version
 	fhl := fileHTTPLock{Version: "1.0"}

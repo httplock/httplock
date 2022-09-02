@@ -20,7 +20,7 @@ PWD:=$(shell pwd)
 
 .FORCE:
 
-all: fmt vet test lint binaries
+all: fmt vet test lint swagger binaries
 
 fmt:
 	go fmt ./...
@@ -35,6 +35,10 @@ lint: lint-go lint-md
 
 lint-go: $(GOPATH)/bin/staticcheck .FORCE
 	$(GOPATH)/bin/staticcheck -checks all ./...
+
+swagger: $(GOPATH)/bin/swag .FORCE
+	$(GOPATH)/bin/swag fmt --dir ./internal/api
+	$(GOPATH)/bin/swag init --dir ./internal/api -g api.go --parseInternal -o ./internal/api/docs
 
 lint-md: .FORCE
 	docker run --rm -v "$(PWD):/workdir:ro" ghcr.io/igorshubovych/markdownlint-cli:latest \
@@ -83,3 +87,6 @@ artifacts/httplock-%: artifact-pre .FORCE
 
 $(GOPATH)/bin/staticcheck: 
 	go install "honnef.co/go/tools/cmd/staticcheck@latest"
+
+$(GOPATH)/bin/swag: 
+	go install "github.com/swaggo/swag/cmd/swag@latest"

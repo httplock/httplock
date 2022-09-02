@@ -1,0 +1,109 @@
+info:
+  contact:
+    url: https://github.com/httplock/httplock
+  description: HTTP reproducible proxy server.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  title: httplock API
+  version: "0.1"
+paths:
+  /api/ca:
+    get:
+      description: returns the public CA in PEM format
+      produces:
+      - application/text
+      responses:
+        "200":
+          description: OK
+        "500":
+          description: Internal Server Error
+      summary: Get CA
+  /api/root/{id}/export:
+    get:
+      description: Exports a hash, returning a tar+gz
+      parameters:
+      - description: hash
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/x-gtar
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Root export
+  /api/root/{id}/import:
+    put:
+      consumes:
+      - application/x-gtar
+      description: Imports a root hash from a tar+gz
+      parameters:
+      - description: hash
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Root import
+  /api/token:
+    post:
+      description: returns a new uuid for recording a session
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+        "500":
+          description: Internal Server Error
+      summary: Token create
+  /api/token/{id}:
+    delete:
+      description: returns a new uuid for recording a session
+      parameters:
+      - description: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Token delete
+  /api/token/{id}/save:
+    post:
+      description: Saves a uuid token, returning an immutable hash
+      parameters:
+      - description: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Token save
+swagger: "2.0"

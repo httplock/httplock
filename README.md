@@ -34,15 +34,15 @@ docker run -d --rm --name httplock-proxy \
   -p "127.0.0.1:8080:8080" -p "127.0.0.1:8081:8081" \
   httplock/httplock server -c /var/lib/httplock/config.json
 
-uuid=$(curl -sX POST http://127.0.0.1:8081/token | jq -r .uuid)
+uuid=$(curl -sX POST http://127.0.0.1:8081/api/token | jq -r .uuid)
 echo "${uuid}"
-curl -s http://127.0.0.1:8081/ca >ca.pem
+curl -s http://127.0.0.1:8081/api/ca >ca.pem
 
 http_proxy="http://token:${uuid}@127.0.0.1:8080" \
   https_proxy="http://token:${uuid}@127.0.0.1:8080" \
   curl -v --cacert ca.pem -i https://www.google.com/
 
-hash=$(curl -sX POST "http://127.0.0.1:8081/token/${uuid}/save" | jq -r .hash)
+hash=$(curl -sX POST "http://127.0.0.1:8081/api/token/${uuid}/save" | jq -r .hash)
 echo "${hash}"
 
 http_proxy="http://token:${hash}@127.0.0.1:8080" \

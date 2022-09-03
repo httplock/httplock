@@ -16,11 +16,11 @@ DOCKER_ARGS=--build-arg "VCS_REF=$(VCS_REF)"
 GOPATH:=$(shell go env GOPATH)
 PWD:=$(shell pwd)
 
-.PHONY: all fmt vet test vendor binaries docker artifacts artifact-pre .FORCE
+.PHONY: all fmt vet test vendor binaries ui docker artifacts artifact-pre .FORCE
 
 .FORCE:
 
-all: fmt vet test lint swagger binaries
+all: ui fmt vet test lint swagger binaries
 
 fmt:
 	go fmt ./...
@@ -57,6 +57,9 @@ binaries: vendor embed/version.json $(BINARIES)
 
 bin/httplock: .FORCE
 	CGO_ENABLED=0 go build ${GO_BUILD_FLAGS} -o bin/httplock .
+
+ui: .FORCE
+	cd ui/files; npm run build
 
 docker: $(IMAGES)
 

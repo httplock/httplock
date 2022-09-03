@@ -23,17 +23,18 @@ var excludeHeaders = []string{
 }
 
 type storageMetaReq struct {
-	Proto    string
-	Method   string
-	User     string
-	Query    string
-	Headers  http.Header
-	CL       int64
-	BodyHash string
+	Proto      string
+	Method     string
+	User       string
+	Query      string
+	Headers    http.Header
+	ContentLen int64
+	BodyHash   string
 }
 
 type storageMetaResp struct {
 	StatusCode int
+	ContentLen int64
 	Headers    http.Header
 }
 
@@ -62,12 +63,12 @@ func storageGenReqHash(req *http.Request, s storage.Storage, root *storage.Root)
 	// returned path consists of:
 	// request hash: method (get/head/post/put), query args, filtered headers
 	hashItems := storageMetaReq{
-		Proto:   req.Proto,
-		Method:  req.Method,
-		User:    req.URL.User.String(),
-		Query:   req.URL.Query().Encode(),
-		Headers: http.Header{},
-		CL:      req.ContentLength,
+		Proto:      req.Proto,
+		Method:     req.Method,
+		User:       req.URL.User.String(),
+		Query:      req.URL.Query().Encode(),
+		Headers:    http.Header{},
+		ContentLen: req.ContentLength,
 	}
 
 	// get hash of request body
@@ -170,6 +171,7 @@ func storageGetResp(req *http.Request, s storage.Storage, root *storage.Root) (*
 		resp.StatusCode = metaResp.StatusCode
 		resp.Status = http.StatusText(metaResp.StatusCode)
 	}
+	resp.ContentLength = metaResp.ContentLen
 	resp.Body = respBodyBR
 
 	return &resp, nil
@@ -188,17 +190,18 @@ func storagePutResp(req *http.Request, resp *http.Response, s storage.Storage, r
 	}
 
 	metaReq := storageMetaReq{
-		Proto:    req.Proto,
-		Method:   req.Method,
-		User:     req.URL.User.String(),
-		Query:    req.URL.Query().Encode(),
-		Headers:  req.Header,
-		BodyHash: reqBodyHash,
-		CL:       req.ContentLength,
+		Proto:      req.Proto,
+		Method:     req.Method,
+		User:       req.URL.User.String(),
+		Query:      req.URL.Query().Encode(),
+		Headers:    req.Header,
+		BodyHash:   reqBodyHash,
+		ContentLen: req.ContentLength,
 	}
 	metaResp := storageMetaResp{
 		Headers:    resp.Header,
 		StatusCode: resp.StatusCode,
+		ContentLen: resp.ContentLength,
 	}
 
 	reqHeadBW, err := root.Write(append(dirElems, reqHash+extReqHead))

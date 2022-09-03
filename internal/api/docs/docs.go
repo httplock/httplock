@@ -39,7 +39,62 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/root/{id}/export": {
+        "/api/root/": {
+            "get": {
+                "description": "Lists the roots",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Root List",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
+                    }
+                }
+            }
+        },
+        "/api/root/{root}/dir": {
+            "get": {
+                "description": "Lists a directory in a root",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Root Dir",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "root hash or uuid",
+                        "name": "root",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "path to list",
+                        "name": "path",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
+                    }
+                }
+            }
+        },
+        "/api/root/{root}/export": {
             "get": {
                 "description": "Exports a hash, returning a tar+gz",
                 "produces": [
@@ -50,7 +105,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "hash",
-                        "name": "id",
+                        "name": "root",
                         "in": "path",
                         "required": true
                     }
@@ -68,7 +123,45 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/root/{id}/import": {
+        "/api/root/{root}/file": {
+            "get": {
+                "description": "Get file contents in a root",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "summary": "Root File",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "root hash or uuid",
+                        "name": "root",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "path of file",
+                        "name": "path",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
+                    }
+                }
+            }
+        },
+        "/api/root/{root}/import": {
             "put": {
                 "description": "Imports a root hash from a tar+gz",
                 "consumes": [
@@ -79,7 +172,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "hash",
-                        "name": "id",
+                        "name": "root",
                         "in": "path",
                         "required": true
                     }
@@ -104,6 +197,14 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "summary": "Token create",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "hash used to initialize the response cache",
+                        "name": "hash",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "201": {
                         "description": "Created"

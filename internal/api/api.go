@@ -72,7 +72,7 @@ func Start(conf config.Config, s storage.Storage, certs *cert.Cert) (*http.Serve
 	r.PathPrefix("/swagger/").Handler(httpSwagger.Handler()).Methods(http.MethodGet)
 	r.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", http.FileServer(http.FS(uiFS))))
 
-	a.conf.Log.Println("Starting api server on", conf.Proxy.Addr)
+	a.conf.Log.Println("Starting api server on", conf.API.Addr)
 	server := http.Server{
 		Handler: r,
 		Addr:    conf.API.Addr,

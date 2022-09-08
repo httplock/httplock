@@ -247,10 +247,10 @@ class TreeReq extends React.Component {
           <div><span onClick={this.toggleExpanded}>- {reqHash}</span><br/>
             Request Header:<br/>
             <pre>{JSON.stringify(reqHead, null, "  ")}</pre><br/>
-            <TreeFile meta={reqHead} root={root} path={path} file={reqHash + "-req-body"} />
+            <TreeFile meta={reqHead} root={root} path={path} hash={reqHash} type="req" />
             Response Header:<br/>
             <pre>{JSON.stringify(respHead, null, "  ")}</pre>
-            <TreeFile meta={respHead} root={root} path={path} file={reqHash + "-resp-body"} />
+            <TreeFile meta={respHead} root={root} path={path} hash={reqHash} type="resp" />
           </div>
         )
       } else {
@@ -263,56 +263,53 @@ class TreeReq extends React.Component {
 class TreeFile extends React.Component {
   constructor(props) {
     super(props);
-    // props should have: meta, root, path, file
+    // props should have: meta, root, path, hash, type
     this.state = {
+      ct: "",
       error: null,
       isLoaded: false,
       isEmpty: false,
       isDisplayable: false,
-      path: props.path.concat(props.file)
     };
+    if (this.props.meta.Headers && this.props.meta.Headers["Content-Type"] && this.props.meta.Headers["Content-Type"].length > 0) {
+      this.state.ct = this.props.meta.Headers["Content-Type"][0]
+    }
+    this.state.urlFile = "/api/root/"+encodeURIComponent(this.props.root)+"/file?ct="+encodeURIComponent(this.state.ct)
+    this.state.urlResp = "/api/root/"+encodeURIComponent(this.props.root)+"/resp?hash="+encodeURIComponent(this.props.hash)
+    for (let i = 0; i < this.props.path.length; i++) {
+      this.state.urlFile += "&path=" + encodeURIComponent(this.props.path[i])
+      this.state.urlResp += "&path=" + encodeURIComponent(this.props.path[i])
+    }
+    this.state.urlFile += "&path=" + encodeURIComponent(this.props.hash + "-" + this.props.type + "-body")
   }
 
   componentDidMount() {
-    const check = this.checkDisplayable(this.props.meta)
-    this.setState(check)
-    if (check.isDisplayable && !this.state.isLoaded) {
+    this.setState(this.checkDisplayable(this.props.meta))
+    if (this.state.isDisplayable && !this.state.isLoaded) {
       this.downloadFile()
     }
   }
 
   checkDisplayable(meta) {
+    const { ct } = this.state;
     if (meta.ContentLen === 0) {
-      console.log("empty body")
       return {isEmpty: true}
     }
-    // reject unknown content types
-    if (!meta.Headers || !meta.Headers["Content-Type"] || meta.Headers["Content-Type"].length < 1) {
-      console.log("unknown content type")
-      return {}
-    }
-    const ct = meta.Headers["Content-Type"][0]
     const allowedCT = ["application/http", "application/json", "application/xml"]
     if (!ct.startsWith("text/") && !allowedCT.includes(ct)) {
-      console.log("disallowed content type: " + ct)
+      // reject unknown content types
       return {}
-    } else if (meta.ContentLen < 100000) {
-      console.log("displayable content: " + ct + " [" + meta.ContentLen + "]")
-      return {isDisplayable: true}
-    } else {
-      console.log("disallowed content length: " + meta.ContentLen)
+    } else if (meta.ContentLen > 100000) {
+      // too large
       return {}
     }
+    // known media type and small enough
+    return {isDisplayable: true}
   }
 
   downloadFile() {
-    const { root } = this.props
-    const { path } = this.state
-    let url = "/api/root/"+encodeURIComponent(root)+"/file"
-    for (let i = 0; i < path.length; i++) {
-      url += (i === 0 ? "?" : "&") + "path=" + encodeURIComponent(path[i])
-    }
-    fetch(url)
+    const { urlFile } = this.state
+    fetch(urlFile)
       .then(res => res.text())
       .then(
         (result) => {
@@ -331,7 +328,7 @@ class TreeFile extends React.Component {
   }
 
   render() {
-    const { content, error, isDisplayable, isEmpty, isLoaded } = this.state;
+    const { content, error, isDisplayable, isEmpty, isLoaded, urlResp } = this.state;
     if (error) {
       return ( <div>Error: {error.message}</div> );
     } else {
@@ -344,8 +341,8 @@ class TreeFile extends React.Component {
           return ( <pre>{content}</pre> );
         }
       } else {
-        // TODO: add download link
-        return ( <div>Download link TBD</div> );
+        // non-displayable uses a download link
+        return ( <a style={{display: "table-cell"}} href={urlResp} target="_blank" rel="noreferrer">Download</a> )
       }
     }
   }

@@ -32,6 +32,13 @@ type api struct {
 	s     storage.Storage
 }
 
+// TODO: move storage types to separate package
+type storageMetaResp struct {
+	StatusCode int
+	ContentLen int64
+	Headers    http.Header
+}
+
 // Start runs an api service
 func Start(conf config.Config, s storage.Storage, certs *cert.Cert) (*http.Server, error) {
 	a := api{
@@ -62,6 +69,7 @@ func Start(conf config.Config, s storage.Storage, certs *cert.Cert) (*http.Serve
 	r.HandleFunc("/api/root", a.rootList).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/dir", a.rootDir).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/file", a.rootFile).Methods(http.MethodGet)
+	r.HandleFunc("/api/root/{root}/resp", a.rootResp).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/export", a.rootExport).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/import", a.rootImport).Methods(http.MethodPut)
 	// r.HandleFunc("/api/root/{root}/path", a.rootPathHosts).Methods(http.MethodGet)
@@ -283,6 +291,7 @@ func (a *api) rootDir(w http.ResponseWriter, req *http.Request) {
 // @Produce     application/octet-stream
 // @Param       root path  string   true  "root hash or uuid"
 // @Param       path query []string false "path of file"
+// @Param       ct query string false "content-type to set on the returned file"
 // @Success     200
 // @Failure     400
 // @Failure     500
@@ -305,6 +314,11 @@ func (a *api) rootFile(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	ct := req.Form.Get("ct")
+	if ct == "" {
+		// default to octet-stream
+		ct = "application/octet-stream"
+	}
 	root, err := a.s.RootOpen(rootID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -317,11 +331,92 @@ func (a *api) rootFile(w http.ResponseWriter, req *http.Request) {
 		a.conf.Log.Warnf("failed to list directory for root: %v", err)
 		return
 	}
-	w.Header().Add("Content-Type", "application/octet-stream")
+	w.Header().Add("Content-Type", ct)
 	w.WriteHeader(http.StatusOK)
 	_, err = io.Copy(w, rdr)
 	if err != nil {
 		a.conf.Log.Warnf("failed to write file: %v", err)
+	}
+}
+
+// rootResp returns the response from a specific request
+// @Summary     Root Response
+// @Description Return the response from a request, including headers
+// @Param       root path  string   true  "root hash or uuid"
+// @Param       path query []string true "path of request"
+// @Param       hash query string true "request hash"
+// @Success     200
+// @Failure     400
+// @Failure     500
+// @Router      /api/root/{root}/resp [get]
+func (a *api) rootResp(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	rootID, ok := vars["root"]
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	err := req.ParseForm()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to parse the form: %v", err)
+		return
+	}
+	path, ok := req.Form["path"]
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	hash := req.Form.Get("hash")
+	if hash == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	root, err := a.s.RootOpen(rootID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to open root: %v", err)
+		return
+	}
+	// read response headers
+	// TODO: move "-resp-head" and "-resp-body" to const in a common package
+	pathRespHead := append(path, hash+"-resp-head")
+	rdrHead, err := root.Read(pathRespHead)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to list directory for root: %v", err)
+		return
+	}
+	defer rdrHead.Close()
+	metaResp := storageMetaResp{}
+	err = json.NewDecoder(rdrHead).Decode(&metaResp)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to process headers from storage: %v", err)
+		return
+	}
+
+	// open/copy response body
+	pathRespBody := append(path, hash+"-resp-body")
+	rdrBody, err := root.Read(pathRespBody)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to list directory for root: %v", err)
+		return
+	}
+	defer rdrBody.Close()
+
+	// copy the headers, write status, copy body
+	wh := w.Header()
+	for k, vv := range metaResp.Headers {
+		for _, v := range vv {
+			wh.Add(k, v)
+		}
+	}
+	w.WriteHeader(metaResp.StatusCode)
+	_, err = io.Copy(w, rdrBody)
+	if err != nil {
+		a.conf.Log.Warnf("failed to write body of response: %v", err)
 	}
 }
 

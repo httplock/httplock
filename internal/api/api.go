@@ -70,6 +70,7 @@ func Start(conf config.Config, s storage.Storage, certs *cert.Cert) (*http.Serve
 	r.HandleFunc("/api/root/{root}/dir", a.rootDir).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/file", a.rootFile).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/resp", a.rootResp).Methods(http.MethodGet)
+	r.HandleFunc("/api/root/{root}/diff", a.rootDiff).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/export", a.rootExport).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/import", a.rootImport).Methods(http.MethodPut)
 	// r.HandleFunc("/api/root/{root}/path", a.rootPathHosts).Methods(http.MethodGet)
@@ -635,6 +636,55 @@ func (a *api) rootResp(w http.ResponseWriter, req *http.Request) {
 // 		a.conf.Log.Warnf("failed to write file: %v", err)
 // 	}
 // }
+
+// rootDiff returns the differences between two roots
+// @Summary     Root Diff
+// @Description Returns the differences between two roots
+// @Produce     application/json
+// @Param       root path string true "root 1 hash or uuid"
+// @Param       root2 query string true "root 2 hash or uuid"
+// @Success     200
+// @Failure     400
+// @Failure     500
+// @Router      /api/root/{root}/diff [get]
+func (a *api) rootDiff(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	root1Hash, ok := vars["root"]
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	root2Hash := req.FormValue("root2")
+	root1, err := a.s.RootOpen(root1Hash)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to open root1: %v", err)
+		return
+	}
+	root2, err := a.s.RootOpen(root2Hash)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to open root2: %v", err)
+		return
+	}
+	report, err := storage.DiffRoots(root1, root2)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to diff roots: %v", err)
+		return
+	}
+	reportJSON, err := json.Marshal(report)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to marshal report: %v", err)
+	}
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(reportJSON)
+	if err != nil {
+		a.conf.Log.Warnf("failed to write report: %v", err)
+	}
+}
 
 // rootExport returns a tar.gz of a given hash
 // @Summary     Root export

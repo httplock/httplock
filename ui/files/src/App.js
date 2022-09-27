@@ -46,7 +46,7 @@ class RootList extends React.Component {
         // on-change update selected state
         // append a tree element for current selected state, passing the root to the tree
         <select value={this.props.selected} onChange={this.handleChange} >
-          <option>Select a root...</option>
+          <option value="">Select a root...</option>
           {roots.map(root => (
             <option><pre>{root}</pre></option>
           ))}
@@ -147,7 +147,7 @@ class TreeDir extends React.Component {
             const reMatch = name.match(re)
             if (reMatch) {
               const reqHash = reMatch[1]
-              liList.push(<li><TreeReq path={path} root={root} reqHash={reqHash} /></li>)
+              liList.push(<li><ReqResp path={path} root={root} reqHash={reqHash} /></li>)
             }
           }
         })
@@ -162,7 +162,7 @@ class TreeDir extends React.Component {
   }
 }
 
-class TreeReq extends React.Component {
+class ReqResp extends React.Component {
   constructor(props) {
     super(props);
     // props should have: reqHash, path, root
@@ -238,20 +238,24 @@ class TreeReq extends React.Component {
     const { error, isExpanded, path, reqHead, respHead } = this.state;
     const { reqHash, root } = this.props;
     if (error) {
-      return <div>Error: {error.message}</div>;
+      return <span>Error: {error.message}</span>;
     } else {
       if (!isExpanded) {
-        return ( <div><span onClick={this.toggleExpanded}>+ {reqHash}</span></div> )
+        return ( <span><span onClick={this.toggleExpanded}>+ {reqHash}</span></span> )
       } else if (reqHead && respHead) {
         return (
-          <div><span onClick={this.toggleExpanded}>- {reqHash}</span><br/>
-            Request Header:<br/>
-            <pre>{JSON.stringify(reqHead, null, "  ")}</pre><br/>
-            <TreeFile meta={reqHead} root={root} path={path} hash={reqHash} type="req" />
-            Response Header:<br/>
-            <pre>{JSON.stringify(respHead, null, "  ")}</pre>
-            <TreeFile meta={respHead} root={root} path={path} hash={reqHash} type="resp" />
-          </div>
+          <span><span onClick={this.toggleExpanded}>- {reqHash}</span>
+            <div>
+              Request Header:<br/>
+              <pre>{JSON.stringify(reqHead, null, "  ")}</pre><br/>
+              <ReqRespBody meta={reqHead} root={root} path={path} hash={reqHash} type="req" />
+            </div>
+            <div>
+              Response Header:<br/>
+              <pre>{JSON.stringify(respHead, null, "  ")}</pre><br/>
+              <ReqRespBody meta={respHead} root={root} path={path} hash={reqHash} type="resp" />
+            </div>
+          </span>
         )
       } else {
         return "Loading..."
@@ -260,7 +264,7 @@ class TreeReq extends React.Component {
   }
 }
 
-class TreeFile extends React.Component {
+class ReqRespBody extends React.Component {
   constructor(props) {
     super(props);
     // props should have: meta, root, path, hash, type
@@ -285,9 +289,6 @@ class TreeFile extends React.Component {
 
   componentDidMount() {
     this.setState(this.checkDisplayable(this.props.meta))
-    if (this.state.isDisplayable && !this.state.isLoaded) {
-      this.downloadFile()
-    }
   }
 
   checkDisplayable(meta) {
@@ -330,13 +331,14 @@ class TreeFile extends React.Component {
   render() {
     const { content, error, isDisplayable, isEmpty, isLoaded, urlResp } = this.state;
     if (error) {
-      return ( <div>Error: {error.message}</div> );
+      return ( <span>Error: {error.message}</span> );
     } else {
       if (isEmpty) {
-        return ( <div>(Empty)</div> );
+        return ( <span>(Empty)</span> );
       } else if (isDisplayable) {
         if (!isLoaded) {
-          return ( <div>Loading...</div> );
+          this.downloadFile();
+          return ( <span>Loading...</span> );
         } else {
           return ( <pre>{content}</pre> );
         }
@@ -380,17 +382,176 @@ class RootInspect extends React.Component {
   }
 }
 
-function App() {
-  return (
-    <div style={{ textAlign: 'left' }}>
+class DiffRoots extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      isLoaded: false,
+      entries: [],
+      error: null,
+      root1: null,
+      root2: null,
+    };
+  }
+
+  loadDiff() {
+    const { root1, root2 } = this.props;
+    this.setState({
+      isLoaded: false,
+    })
+    fetch("/api/root/"+encodeURIComponent(root1)+"/diff?root2="+encodeURIComponent(root2))
+      .then(res => res.json())
+      .then(
+        (result) => {
+          this.setState({
+            isLoaded: true,
+            entries: result.entries,
+          });
+        },
+        (error) => {
+          this.setState({
+            isLoaded: true,
+            error
+          });
+        }
+      )
+  }
+
+  render() {
+    // detect a change in roots and reload diff on change
+    const { root1, root2 } = this.props;
+    if (root1 !== this.state.root1 || root2 !== this.state.root2) {
+      this.setState({
+        root1: root1,
+        root2: root2,
+      });
+      this.loadDiff();
+    }
+    const { error, isLoaded, entries } = this.state;
+    var diffs = [];
+    if (error) {
+      return <div>Error: {error.message}</div>;
+    } else if (!isLoaded) {
+      return <div>Loading...</div>;
+    } else {
+      // loop through each entry
+      // warn on unexpected results (changed req)
+      const reReq = /^(sha256:[0-9a-fA-F]{64})-req-head$/
+      const reResp = /^(sha256:[0-9a-fA-F]{64})-resp-head$/
+      var prevPath = ""
+      Object.keys(entries).forEach(index => {
+        const entry = entries[index]
+        if (!entry.path || entry.path.length !== 3) {
+          console.log("unexpected entry path: " + JSON.stringify(entry))
+        } else if (entry.action === "changed" && entry.path[2].match(reReq)) {
+          console.log("unexpected changed request: " + JSON.stringify(entry))
+        } else if (entry.path[2].match(reResp)) {
+          // skip path output if this matches previous path
+          if (prevPath !== entry.path[1]) {
+            diffs.push(<li>{entry.path[1]}</li>);
+            prevPath = entry.path[1];
+          }
+          const ppath=entry.path.slice(0, -1)
+          const reMatch = entry.path[2].match(reResp)
+          // switch based on action, delete shows root1, add shows root 2, change shows both
+          switch (entry.action) {
+            case "deleted":
+              diffs.push(<ul><li>{entry.action}: <ReqResp path={ppath} root={root1} reqHash={reMatch[1]} /></li></ul>)
+              break;
+            case "added":
+              diffs.push(<ul><li>{entry.action}: <ReqResp path={ppath} root={root2} reqHash={reMatch[1]} /></li></ul>)
+              break;
+            case "changed":
+              diffs.push(<ul><li>{entry.action}: <ReqResp path={ppath} root={root1} reqHash={reMatch[1]} />
+                                         -&gt; <ReqResp path={ppath} root={root2} reqHash={reMatch[1]} /></li></ul>)
+              break;
+            default:
+              console.log("unhandled action: " + entry.action)
+          }
+        }
+      })
+      return ( <ul>{ diffs }</ul> );
+    }
+  }
+}
+
+class DiffSelect extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      root1: "",
+      root2: "",
+    };
+    this.handleChangeRoot1 = this.handleChangeRoot1.bind(this)
+    this.handleChangeRoot2 = this.handleChangeRoot2.bind(this)
+  }
+
+  handleChangeRoot1(root) {
+    this.setState({
+      root1: root
+    })
+  }
+  handleChangeRoot2(root) {
+    this.setState({
+      root2: root
+    })
+  }
+
+  render() {
+    let rootDiff = ""
+    if (this.state.root1 !== "" && this.state.root2 !== "") {
+      rootDiff = ( <DiffRoots root1={this.state.root1} root2={this.state.root2} /> )
+    }
+    return (
+      // start the page with a dropdown of roots, include import/export, refresh
+      // on-change update selected state
+      // append a tree element for current selected state, passing the root to the tree
+      <div>
+        <RootList selected={this.state.root1} onChangeRoot={this.handleChangeRoot1} />
+        -&gt;
+        <RootList selected={this.state.root2} onChangeRoot={this.handleChangeRoot2} />
+        <br/>
+        { rootDiff }
+      </div>
+    );
+  }
+}
+
+
+class App extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      selected: "inspect"
+    };
+    this.handleClick = this.handleClick.bind(this);
+  }
+
+  handleClick(e) {
+    this.setState({
+      selected: e.target.attributes["name"].value,
+    });
+  }
+
+  render() {
+    const { selected } = this.state;
+    var tabContent=""
+    if (selected === "inspect") {
+      tabContent=<RootInspect/>;
+    } else if (selected === "diff") {
+      tabContent=<DiffSelect/>;
+    }
+    return (
+      <div style={{ textAlign: 'left' }}>
       <header>
         {/* Add a set of tabs for different areas (inspect, diff, validate, link to swagger API) */}
-        Inspect
+        <span name="inspect" class={"tabBar" + (selected === "inspect" ? " selected" : "")} onClick={this.handleClick}>Inspect</span>
+        <span name="diff"    class={"tabBar" + (selected === "diff" ?    " selected" : "")} onClick={this.handleClick}>Diff</span>
       </header>
-      {/* default to inspect */}
-      <RootInspect/>
+      { tabContent }
     </div>
-  );
+    );
+  }
 }
 
 export default App;

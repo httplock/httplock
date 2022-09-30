@@ -278,13 +278,15 @@ class ReqRespBody extends React.Component {
     if (this.props.meta.Headers && this.props.meta.Headers["Content-Type"] && this.props.meta.Headers["Content-Type"].length > 0) {
       this.state.ct = this.props.meta.Headers["Content-Type"][0]
     }
-    this.state.urlFile = "/api/root/"+encodeURIComponent(this.props.root)+"/file?ct="+encodeURIComponent(this.state.ct)
-    this.state.urlResp = "/api/root/"+encodeURIComponent(this.props.root)+"/resp?hash="+encodeURIComponent(this.props.hash)
+    var urlPath = []
     for (let i = 0; i < this.props.path.length; i++) {
-      this.state.urlFile += "&path=" + encodeURIComponent(this.props.path[i])
-      this.state.urlResp += "&path=" + encodeURIComponent(this.props.path[i])
+      urlPath.push("path=" + encodeURIComponent(this.props.path[i]))
     }
-    this.state.urlFile += "&path=" + encodeURIComponent(this.props.hash + "-" + this.props.type + "-body")
+    this.state.urlFile = "/api/root/"+encodeURIComponent(this.props.root)+"/file"+
+      "?ct="+encodeURIComponent(this.state.ct)+"&"+urlPath.join("&")+
+      "&path=" + encodeURIComponent(this.props.hash + "-" + this.props.type + "-body")
+    this.state.urlResp = "/api/root/"+encodeURIComponent(this.props.root)+"/resp"+
+      "?hash="+encodeURIComponent(this.props.hash)+"&"+urlPath.join("&")
   }
 
   componentDidMount() {
@@ -297,15 +299,12 @@ class ReqRespBody extends React.Component {
       return {isEmpty: true}
     }
     const allowedCT = ["application/http", "application/json", "application/xml"]
-    if (!ct.startsWith("text/") && !allowedCT.includes(ct)) {
-      // reject unknown content types
-      return {}
-    } else if (meta.ContentLen > 100000) {
-      // too large
-      return {}
+    if ((ct.startsWith("text/") || allowedCT.includes(ct)) && meta.ContentLen > 0 && meta.ContentLen <= 100000 ) {
+      // known media type and small enough
+      return {isDisplayable: true}
     }
-    // known media type and small enough
-    return {isDisplayable: true}
+    // too large or unknown
+    return {}
   }
 
   downloadFile() {
@@ -329,7 +328,7 @@ class ReqRespBody extends React.Component {
   }
 
   render() {
-    const { content, error, isDisplayable, isEmpty, isLoaded, urlResp } = this.state;
+    const { content, error, info, isDisplayable, isEmpty, isLoaded, urlResp } = this.state;
     if (error) {
       return ( <span>Error: {error.message}</span> );
     } else {
@@ -463,7 +462,7 @@ class DiffRoots extends React.Component {
               break;
             case "changed":
               diffs.push(<ul><li>{entry.action}: <ReqResp path={ppath} root={root1} reqHash={reMatch[1]} />
-                                         -&gt; <ReqResp path={ppath} root={root2} reqHash={reMatch[1]} /></li></ul>)
+                                    &nbsp; -&gt; <ReqResp path={ppath} root={root2} reqHash={reMatch[1]} /></li></ul>)
               break;
             default:
               console.log("unhandled action: " + entry.action)

@@ -69,6 +69,7 @@ func Start(conf config.Config, s storage.Storage, certs *cert.Cert) (*http.Serve
 	r.HandleFunc("/api/root", a.rootList).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/dir", a.rootDir).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/file", a.rootFile).Methods(http.MethodGet)
+	r.HandleFunc("/api/root/{root}/info", a.rootInfo).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/resp", a.rootResp).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/diff", a.rootDiff).Methods(http.MethodGet)
 	r.HandleFunc("/api/root/{root}/export", a.rootExport).Methods(http.MethodGet)
@@ -140,6 +141,7 @@ func (a *api) tokenCreate(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	// TODO: format in object and marshal with json
 	token := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("token:%s", name)))
 	fmt.Fprintf(w, "{\"uuid\": \"%s\", \"auth\": \"%s\"}", name, token)
 }
@@ -199,6 +201,7 @@ func (a *api) tokenSave(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	// TODO: add to struct and marshal as json
 	fmt.Fprintf(w, "{\"hash\": \"%s\"}", h)
 }
 
@@ -332,6 +335,65 @@ func (a *api) rootFile(w http.ResponseWriter, req *http.Request) {
 	_, err = io.Copy(w, rdr)
 	if err != nil {
 		a.conf.Log.Warnf("failed to write file: %v", err)
+	}
+}
+
+// rootInfo returns info about a specific path entry in a root
+// @Summary     Root Info
+// @Description Get info about a specific path entry in a root
+// @Produce     application/json
+// @Param       root path  string   true  "root hash or uuid"
+// @Param       path query []string false "path of file"
+// @Success     200
+// @Failure     400
+// @Failure     500
+// @Router      /api/root/{root}/info [get]
+func (a *api) rootInfo(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	rootID, ok := vars["root"]
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	err := req.ParseForm()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to parse the form: %v", err)
+		return
+	}
+	path, ok := req.Form["path"]
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	root, err := a.s.RootOpen(rootID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to open root: %v", err)
+		return
+	}
+	hash, err := root.EntryHash(path)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to lookup entry hash for root: %v", err)
+		return
+	}
+	response := struct {
+		Hash string `json:"hash"`
+	}{
+		Hash: hash,
+	}
+	respBytes, err := json.Marshal(response)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		a.conf.Log.Warnf("failed to marshal response: %v", err)
+		return
+	}
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(respBytes)
+	if err != nil {
+		a.conf.Log.Warnf("failed to write response: %v", err)
 	}
 }
 

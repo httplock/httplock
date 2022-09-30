@@ -58,6 +58,36 @@ func newRootHash(s Storage, hash string) *Root {
 	}
 }
 
+// EntryHash returns the hash of a path entry
+func (r *Root) EntryHash(path []string) (string, error) {
+	dCur, err := r.getDir(path[:len(path)-1], false)
+	if err != nil {
+		return "", err
+	}
+	name := path[len(path)-1]
+	entry, ok := dCur.Entries[name]
+	if !ok {
+		return "", fmt.Errorf("not found: %s", strings.Join(path, "/"))
+	}
+	if entry.Hash == "" {
+		switch entry.Kind {
+		case KindDir:
+			err = r.hashDir(entry.dir)
+			if err != nil {
+				return "", fmt.Errorf("failed to hash directory: %w", err)
+			}
+			entry.Hash = entry.dir.hash
+		case KindFile:
+			err = r.hashFile(entry.file)
+			if err != nil {
+				return "", fmt.Errorf("failed to hash file: %w", err)
+			}
+			entry.Hash = entry.file.hash
+		}
+	}
+	return entry.Hash, nil
+}
+
 // Link references an existing blob as a file in a directory
 func (r *Root) Link(path []string, blob string) error {
 	dCur, err := r.getDir(path[:len(path)-1], true)

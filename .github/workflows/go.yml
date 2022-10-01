@@ -14,16 +14,23 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        gover: ["1.17", "1.18", "1.19"]
+
+    env:
+      RELEASE_GO_VER: "1.19"
+
     steps:
 
-    - name: Set up Go 1.17
-      uses: actions/setup-go@v2
+    - name: "Set up Go ${{ matrix.gover }}"
+      uses: actions/setup-go@v3
       with:
-        go-version: ^1.17
+        go-version: "${{ matrix.gover }}"
       id: go
 
     - name: Check out code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Get dependencies
       run: |
@@ -52,7 +59,7 @@ jobs:
       run: make artifacts
 
     - name: Gather release details
-      if: startsWith( github.ref, 'refs/tags/v' ) && github.repository_owner == 'httplock'
+      if: startsWith( github.ref, 'refs/tags/v' ) && github.repository_owner == 'httplock' && matrix.gover == env.RELEASE_GO_VER
       id: release_details
       run: |
         VERSION=${GITHUB_REF#refs/tags/}
@@ -70,7 +77,7 @@ jobs:
         echo ::set-output name=release_notes::${RELEASE_NOTES}
 
     - name: Create release
-      if: steps.release_details.outputs.valid == 'true'
+      if: steps.release_details.outputs.valid == 'true' && matrix.gover == env.RELEASE_GO_VER
       id: release_create
       uses: softprops/action-gh-release@v1
       env:
@@ -89,8 +96,8 @@ jobs:
           ./artifacts/httplock-windows-amd64.exe
 
     - name: Save artifacts
-      if: github.ref == 'refs/heads/main'
-      uses: actions/upload-artifact@v2
+      if: github.ref == 'refs/heads/main' && matrix.gover == env.RELEASE_GO_VER
+      uses: actions/upload-artifact@v3
       with:
         name: binaries
         path: ./artifacts/

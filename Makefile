@@ -15,12 +15,20 @@ DOCKERFILE_EXT=$(shell if docker build --help | grep -q -- '--progress'; then ec
 DOCKER_ARGS=--build-arg "VCS_REF=$(VCS_REF)"
 GOPATH:=$(shell go env GOPATH)
 PWD:=$(shell pwd)
+NPM?=$(shell command -v npm 2>/dev/null)
+NPM_CONTAINER?=node:18
+ifeq "$(strip $(NPM))" ''
+	NPM=docker run --rm \
+		-v "$(shell pwd)/:$(shell pwd)/" -w "$(shell pwd)" \
+		-u "$(shell id -u):$(shell id -g)" \
+		$(NPM_CONTAINER)
+endif
 
 .PHONY: all fmt vet test vendor binaries ui docker artifacts artifact-pre .FORCE
 
 .FORCE:
 
-all: ui fmt vet test lint swagger binaries
+all: npm-install ui fmt vet test lint swagger binaries
 
 fmt:
 	go fmt ./...
@@ -42,7 +50,7 @@ swagger: $(GOPATH)/bin/swag .FORCE
 
 lint-md: .FORCE
 	docker run --rm -v "$(PWD):/workdir:ro" ghcr.io/igorshubovych/markdownlint-cli:latest \
-	  --ignore vendor .
+	  --ignore vendor --ignore ui/files/node_modules .
 
 vendor:
 	go mod vendor
@@ -58,8 +66,11 @@ binaries: vendor embed/version.json $(BINARIES)
 bin/httplock: .FORCE
 	CGO_ENABLED=0 go build ${GO_BUILD_FLAGS} -o bin/httplock .
 
+npm-install: .FORCE
+	cd ui/files && $(NPM) install --production
+
 ui: .FORCE
-	cd ui/files; npm run build
+	cd ui/files; $(NPM) run build
 
 docker: $(IMAGES)
 

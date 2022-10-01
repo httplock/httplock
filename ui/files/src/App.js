@@ -328,7 +328,7 @@ class ReqRespBody extends React.Component {
   }
 
   render() {
-    const { content, error, info, isDisplayable, isEmpty, isLoaded, urlResp } = this.state;
+    const { content, error, isDisplayable, isEmpty, isLoaded, urlResp } = this.state;
     if (error) {
       return ( <span>Error: {error.message}</span> );
     } else {

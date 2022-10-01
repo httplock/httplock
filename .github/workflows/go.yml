@@ -35,6 +35,12 @@ jobs:
     - name: Verify go vet
       run: test -z "$(go vet ./...)"
 
+    - name: NPM Install
+      run: make npm-install
+
+    - name: UI build
+      run: make ui
+
     - name: Test
       run: make test
 

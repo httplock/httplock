@@ -236,7 +236,7 @@ func (a *api) rootList(w http.ResponseWriter, req *http.Request) {
 // @Summary     Root Dir
 // @Description Lists a directory in a root
 // @Produce     application/json
-// @Param       root path  string   true  "root hash or uuid"
+// @Param       root path  string   true "root hash or uuid"
 // @Param       path query []string false "path to list"
 // @Success     200
 // @Failure     400
@@ -290,7 +290,7 @@ func (a *api) rootDir(w http.ResponseWriter, req *http.Request) {
 // @Produce     application/octet-stream
 // @Param       root path  string   true  "root hash or uuid"
 // @Param       path query []string false "path of file"
-// @Param       ct query string false "content-type to set on the returned file"
+// @Param       ct   query string   false "content-type to set on the returned file"
 // @Success     200
 // @Failure     400
 // @Failure     500
@@ -402,7 +402,7 @@ func (a *api) rootInfo(w http.ResponseWriter, req *http.Request) {
 // @Description Return the response from a request, including headers
 // @Param       root path  string   true  "root hash or uuid"
 // @Param       path query []string true "path of request"
-// @Param       hash query string true "request hash"
+// @Param       hash query string   true "request hash"
 // @Success     200
 // @Failure     400
 // @Failure     500
@@ -482,7 +482,7 @@ func (a *api) rootResp(w http.ResponseWriter, req *http.Request) {
 // @Summary     Root Diff
 // @Description Returns the differences between two roots
 // @Produce     application/json
-// @Param       root path string true "root 1 hash or uuid"
+// @Param       root  path  string true "root 1 hash or uuid"
 // @Param       root2 query string true "root 2 hash or uuid"
 // @Success     200
 // @Failure     400

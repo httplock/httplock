@@ -56,6 +56,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/root/{root}/diff": {
+            "get": {
+                "description": "Returns the differences between two roots",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Root Diff",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "root 1 hash or uuid",
+                        "name": "root",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "root 2 hash or uuid",
+                        "name": "root2",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
+                    }
+                }
+            }
+        },
         "/api/root/{root}/dir": {
             "get": {
                 "description": "Lists a directory in a root",
@@ -146,6 +182,12 @@ const docTemplate = `{
                         "description": "path of file",
                         "name": "path",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "content-type to set on the returned file",
+                        "name": "ct",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -180,6 +222,87 @@ const docTemplate = `{
                 "responses": {
                     "201": {
                         "description": "Created"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
+                    }
+                }
+            }
+        },
+        "/api/root/{root}/info": {
+            "get": {
+                "description": "Get info about a specific path entry in a root",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Root Info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "root hash or uuid",
+                        "name": "root",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "path of file",
+                        "name": "path",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
+                    }
+                }
+            }
+        },
+        "/api/root/{root}/resp": {
+            "get": {
+                "description": "Return the response from a request, including headers",
+                "summary": "Root Response",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "root hash or uuid",
+                        "name": "root",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "path of request",
+                        "name": "path",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "request hash",
+                        "name": "hash",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     },
                     "400": {
                         "description": "Bad Request"

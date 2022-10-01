@@ -21,7 +21,7 @@ ifeq "$(strip $(NPM))" ''
 	NPM=docker run --rm \
 		-v "$(shell pwd)/:$(shell pwd)/" -w "$(shell pwd)" \
 		-u "$(shell id -u):$(shell id -g)" \
-		$(NPM_CONTAINER)
+		$(NPM_CONTAINER) npm
 endif
 
 .PHONY: all fmt vet test vendor binaries ui docker artifacts artifact-pre .FORCE
@@ -38,6 +38,11 @@ vet:
 
 test:
 	go test ./...
+
+go-update:
+	go get -u
+	go mod tidy
+	go vet ./...
 
 lint: lint-go lint-md
 
@@ -68,6 +73,9 @@ bin/httplock: .FORCE
 
 npm-install: .FORCE
 	cd ui/files && $(NPM) install --production
+
+npm-update: .FORCE
+	cd ui/files && $(NPM) update
 
 ui: .FORCE
 	cd ui/files; $(NPM) run build

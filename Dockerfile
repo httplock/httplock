@@ -1,6 +1,7 @@
 ARG REGISTRY=docker.io
 ARG ALPINE_VER=3
-ARG GO_VER=1.18-alpine
+ARG GO_VER=1.19-alpine
+ARG NODE_VER=18-alpine
 
 FROM ${REGISTRY}/library/golang:${GO_VER} as golang
 RUN apk add --no-cache \
@@ -9,14 +10,14 @@ RUN apk add --no-cache \
 RUN adduser -D appuser
 WORKDIR /src
 
-FROM --platform=$BUILDPLATFORM ${REGISTRY}/library/node:${NODE_VER} as node
+FROM ${REGISTRY}/library/node:${NODE_VER} as node
 RUN apk add --no-cache \
       ca-certificates \
       make
 RUN adduser -D appuser
 WORKDIR /src
 
-FROM --platform=$BUILDPLATFORM node as ui
+FROM node as ui
 COPY ui/files/package*.json ./ui/files/
 RUN  cd ui/files \
  && npm install --production

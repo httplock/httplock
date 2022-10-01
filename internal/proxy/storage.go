@@ -23,18 +23,20 @@ var excludeHeaders = []string{
 }
 
 type storageMetaReq struct {
-	Proto    string
-	Method   string
-	User     string
-	Query    string
-	Headers  http.Header
-	CL       int64
-	BodyHash string
+	Proto      string
+	Method     string
+	User       string
+	Query      string
+	Headers    http.Header
+	ContentLen int64
+	BodyHash   string
 }
 
 type storageMetaResp struct {
 	StatusCode int
 	Headers    http.Header
+	ContentLen int64
+	BodyHash   string
 }
 
 func includeHeader(header string) bool {
@@ -62,12 +64,12 @@ func storageGenReqHash(req *http.Request, s storage.Storage, root *storage.Root)
 	// returned path consists of:
 	// request hash: method (get/head/post/put), query args, filtered headers
 	hashItems := storageMetaReq{
-		Proto:   req.Proto,
-		Method:  req.Method,
-		User:    req.URL.User.String(),
-		Query:   req.URL.Query().Encode(),
-		Headers: http.Header{},
-		CL:      req.ContentLength,
+		Proto:      req.Proto,
+		Method:     req.Method,
+		User:       req.URL.User.String(),
+		Query:      req.URL.Query().Encode(),
+		Headers:    http.Header{},
+		ContentLen: req.ContentLength,
 	}
 
 	// get hash of request body
@@ -170,6 +172,7 @@ func storageGetResp(req *http.Request, s storage.Storage, root *storage.Root) (*
 		resp.StatusCode = metaResp.StatusCode
 		resp.Status = http.StatusText(metaResp.StatusCode)
 	}
+	resp.ContentLength = metaResp.ContentLen
 	resp.Body = respBodyBR
 
 	return &resp, nil
@@ -188,17 +191,18 @@ func storagePutResp(req *http.Request, resp *http.Response, s storage.Storage, r
 	}
 
 	metaReq := storageMetaReq{
-		Proto:    req.Proto,
-		Method:   req.Method,
-		User:     req.URL.User.String(),
-		Query:    req.URL.Query().Encode(),
-		Headers:  req.Header,
-		BodyHash: reqBodyHash,
-		CL:       req.ContentLength,
+		Proto:      req.Proto,
+		Method:     req.Method,
+		User:       req.URL.User.String(),
+		Query:      req.URL.Query().Encode(),
+		Headers:    req.Header,
+		BodyHash:   reqBodyHash,
+		ContentLen: req.ContentLength,
 	}
 	metaResp := storageMetaResp{
 		Headers:    resp.Header,
 		StatusCode: resp.StatusCode,
+		ContentLen: resp.ContentLength,
 	}
 
 	reqHeadBW, err := root.Write(append(dirElems, reqHash+extReqHead))
@@ -216,22 +220,28 @@ func storagePutResp(req *http.Request, resp *http.Response, s storage.Storage, r
 		return fmt.Errorf("root link for req body: %w", err)
 	}
 
-	respHeadBW, err := root.Write(append(dirElems, reqHash+extRespHead))
-	if err != nil {
-		return fmt.Errorf("root write for resp head: %w", err)
-	}
-	err = json.NewEncoder(respHeadBW).Encode(metaResp)
-	respHeadBW.Close()
-	if err != nil {
-		return fmt.Errorf("json encode resp: %w", err)
-	}
-
 	// replace resp.Body with a tee reader to cache body contents
 	respBodyBW, err := root.Write(append(dirElems, reqHash+extRespBody))
 	if err != nil {
 		return fmt.Errorf("root write for resp body: %w", err)
 	}
-	resp.Body = newTeeRC(resp.Body, respBodyBW)
+	resp.Body = newTeeRC(resp.Body, respBodyBW, func() error {
+		// save the resp-head after the body has been cached to include the hash
+		respHeadBW, err := root.Write(append(dirElems, reqHash+extRespHead))
+		if err != nil {
+			return fmt.Errorf("root write for resp head: %w", err)
+		}
+		metaResp.BodyHash, err = respBodyBW.Hash()
+		if err != nil {
+			return fmt.Errorf("extracting response body hash: %w", err)
+		}
+		err = json.NewEncoder(respHeadBW).Encode(metaResp)
+		respHeadBW.Close()
+		if err != nil {
+			return fmt.Errorf("json encode response head: %w", err)
+		}
+		return nil
+	})
 
 	return nil
 }

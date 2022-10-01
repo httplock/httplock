@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -55,6 +56,36 @@ func newRootHash(s Storage, hash string) *Root {
 		hash:     hash,
 		readonly: true,
 	}
+}
+
+// EntryHash returns the hash of a path entry
+func (r *Root) EntryHash(path []string) (string, error) {
+	dCur, err := r.getDir(path[:len(path)-1], false)
+	if err != nil {
+		return "", err
+	}
+	name := path[len(path)-1]
+	entry, ok := dCur.Entries[name]
+	if !ok {
+		return "", fmt.Errorf("not found: %s", strings.Join(path, "/"))
+	}
+	if entry.Hash == "" {
+		switch entry.Kind {
+		case KindDir:
+			err = r.hashDir(entry.dir)
+			if err != nil {
+				return "", fmt.Errorf("failed to hash directory: %w", err)
+			}
+			entry.Hash = entry.dir.hash
+		case KindFile:
+			err = r.hashFile(entry.file)
+			if err != nil {
+				return "", fmt.Errorf("failed to hash file: %w", err)
+			}
+			entry.Hash = entry.file.hash
+		}
+	}
+	return entry.Hash, nil
 }
 
 // Link references an existing blob as a file in a directory
@@ -465,4 +496,217 @@ func (k *EntryKind) UnmarshalText(b []byte) error {
 		return fmt.Errorf("unknown directory entry kind: %s", b)
 	}
 	return nil
+}
+
+func (d *Dir) keys() []string {
+	if d == nil || d.Entries == nil {
+		return nil
+	}
+	keys := make([]string, 0, len(d.Entries))
+	for k := range d.Entries {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+type DiffReport struct {
+	R1      string      `json:"r1"` // hash of root 1
+	R2      string      `json:"r2"` // hash of root 2
+	Entries []DiffEntry `json:"entries"`
+}
+type DiffEntry struct {
+	Action string   `json:"action"`          // add, remove, changed
+	Path   []string `json:"path"`            // path to entry
+	Hash1  string   `json:"hash1,omitempty"` // hash of entry from 1
+	Hash2  string   `json:"hash2,omitempty"` // hash of entry from 2
+}
+
+// DiffRoots compares two roots and returns a list of differences
+// TODO: improve entry to show more than the hash and to package request/response into a single entry?
+func DiffRoots(r1, r2 *Root) (DiffReport, error) {
+	dr := DiffReport{
+		Entries: []DiffEntry{},
+	}
+
+	if !r1.readonly && r1.dir != nil {
+		err := r1.hashDir(r1.dir)
+		if err != nil {
+			return dr, fmt.Errorf("failed to compute hash on r1: %w", err)
+		}
+		r1.hash = r1.dir.hash
+	}
+	if r1.hash == "" {
+		return dr, fmt.Errorf("hash missing from r1")
+	}
+	dr.R1 = r1.hash
+	if !r2.readonly && r2.dir != nil {
+		err := r2.hashDir(r2.dir)
+		if err != nil {
+			return dr, fmt.Errorf("failed to compute hash on r2: %w", err)
+		}
+		r2.hash = r2.dir.hash
+	}
+	if r2.hash == "" {
+		return dr, fmt.Errorf("hash missing from r2")
+	}
+	dr.R2 = r2.hash
+
+	// setup iterator on each root
+	di1, err := newDiffIter(r1)
+	if err != nil {
+		return dr, err
+	}
+	di2, err := newDiffIter(r2)
+	if err != nil {
+		return dr, err
+	}
+	for {
+		// copy slices to be local to loop
+		p1 := make([]string, len(di1.curPath))
+		p2 := make([]string, len(di2.curPath))
+		copy(p1, di1.curPath)
+		copy(p2, di2.curPath)
+		// compare current iterator
+		cmp := cmpPaths(p1, p2)
+		if len(p1) > 0 && (len(p2) == 0 || cmp < 0) {
+			// deleted
+			dr.Entries = append(dr.Entries, DiffEntry{
+				Action: "deleted",
+				Path:   p1,
+				Hash1:  di1.curFileHash,
+			})
+
+			_, err = di1.next()
+			if err != nil && !errors.Is(err, io.EOF) {
+				return dr, err
+			}
+		} else if len(p2) > 0 && (len(p1) == 0 || cmp > 0) {
+			// added
+			dr.Entries = append(dr.Entries, DiffEntry{
+				Action: "added",
+				Path:   p2,
+				Hash2:  di2.curFileHash,
+			})
+
+			_, err = di2.next()
+			if err != nil && !errors.Is(err, io.EOF) {
+				return dr, err
+			}
+		} else {
+			// if r1 == r2, both are request headers, but responses differ, show changed
+			if len(p1) > 0 {
+				if di1.curFileHash != di2.curFileHash {
+					dr.Entries = append(dr.Entries, DiffEntry{
+						Action: "changed",
+						Path:   p1,
+						Hash1:  di1.curFileHash,
+						Hash2:  di2.curFileHash,
+					})
+				}
+			}
+
+			// iterate
+			_, err1 := di1.next()
+			if err1 != nil && !errors.Is(err1, io.EOF) {
+				return dr, err1
+			}
+			_, err2 := di2.next()
+			if err2 != nil && !errors.Is(err2, io.EOF) {
+				return dr, err2
+			}
+			if err1 != nil && err2 != nil {
+				// both list at EOF
+				break
+			}
+		}
+	}
+
+	return dr, nil
+}
+
+type diffIter struct {
+	r                *Root
+	curDirs          []*Dir
+	remainingEntries [][]string
+	curPath          []string
+	curFileHash      string
+}
+
+func newDiffIter(r *Root) (*diffIter, error) {
+	err := r.loadRoot()
+	if err != nil {
+		return nil, err
+	}
+	di := diffIter{
+		r:                r,
+		curDirs:          []*Dir{r.dir},
+		remainingEntries: [][]string{r.dir.keys()},
+		curPath:          []string{""},
+	}
+	return &di, nil
+}
+func (di *diffIter) next() ([]string, error) {
+	for {
+		// go to the last index of remainingEntries
+		i := len(di.remainingEntries) - 1
+		if i < 0 {
+			return nil, io.EOF
+		}
+		// if leaf is empty, remove leaf and rerun on parent
+		if len(di.remainingEntries[i]) == 0 {
+			di.curDirs = di.curDirs[:i]
+			di.remainingEntries = di.remainingEntries[:i]
+			di.curPath = di.curPath[:i]
+			di.curFileHash = ""
+			continue
+		}
+		// move next remaining entry to curPath
+		di.curPath[i] = di.remainingEntries[i][0]
+		di.remainingEntries[i] = di.remainingEntries[i][1:]
+		// handle current entry
+		de, ok := di.curDirs[i].Entries[di.curPath[i]]
+		if !ok {
+			return nil, fmt.Errorf("failed looking up entry: %v", di.curPath)
+		}
+		if de.Kind == KindFile {
+			// if entry is a file, save hash and break (this is the next iter)
+			di.curFileHash = de.Hash
+			break
+		} else if de.Kind == KindDir {
+			// if entry is a directory, add a new leaf to process
+			var err error
+			de.dir, err = di.r.loadDir(de.Hash)
+			if err != nil {
+				return nil, fmt.Errorf("failed loading dir at %v: %w", di.curPath, err)
+			}
+			di.curDirs = append(di.curDirs, de.dir)
+			di.remainingEntries = append(di.remainingEntries, de.dir.keys())
+			di.curPath = append(di.curPath, "")
+			di.curFileHash = ""
+		} else {
+			return nil, fmt.Errorf("unknown entry type %v at %v", de.Kind, di.curPath)
+		}
+	}
+
+	return di.curPath, nil
+}
+
+// cmpPaths returns 0: p1 == p2, +1: p1 > p2, or -1: p1 < p2
+func cmpPaths(p1, p2 []string) int {
+	for i := 0; i < len(p1); i++ {
+		if len(p2) < i+1 {
+			// p1 > p2
+			return 1
+		}
+		cmp := strings.Compare(p1[i], p2[i])
+		if cmp != 0 {
+			return cmp
+		}
+	}
+	if len(p2) > len(p1) {
+		// p1 < p2
+		return -1
+	}
+	return 0
 }

@@ -6,3 +6,7 @@
 !internal/
 !vendor/
 !Makefile
+!ui/*.go
+!ui/files/package*.json
+!ui/files/public/
+!ui/files/src/

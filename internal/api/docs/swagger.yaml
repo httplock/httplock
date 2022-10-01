@@ -19,13 +19,73 @@ paths:
         "500":
           description: Internal Server Error
       summary: Get CA
-  /api/root/{id}/export:
+  /api/root/:
+    get:
+      description: Lists the roots
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "500":
+          description: Internal Server Error
+      summary: Root List
+  /api/root/{root}/diff:
+    get:
+      description: Returns the differences between two roots
+      parameters:
+      - description: root 1 hash or uuid
+        in: path
+        name: root
+        required: true
+        type: string
+      - description: root 2 hash or uuid
+        in: query
+        name: root2
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Root Diff
+  /api/root/{root}/dir:
+    get:
+      description: Lists a directory in a root
+      parameters:
+      - description: root hash or uuid
+        in: path
+        name: root
+        required: true
+        type: string
+      - description: path to list
+        in: query
+        items:
+          type: string
+        name: path
+        type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Root Dir
+  /api/root/{root}/export:
     get:
       description: Exports a hash, returning a tar+gz
       parameters:
       - description: hash
         in: path
-        name: id
+        name: root
         required: true
         type: string
       produces:
@@ -38,7 +98,36 @@ paths:
         "500":
           description: Internal Server Error
       summary: Root export
-  /api/root/{id}/import:
+  /api/root/{root}/file:
+    get:
+      description: Get file contents in a root
+      parameters:
+      - description: root hash or uuid
+        in: path
+        name: root
+        required: true
+        type: string
+      - description: path of file
+        in: query
+        items:
+          type: string
+        name: path
+        type: array
+      - description: content-type to set on the returned file
+        in: query
+        name: ct
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Root File
+  /api/root/{root}/import:
     put:
       consumes:
       - application/x-gtar
@@ -46,7 +135,7 @@ paths:
       parameters:
       - description: hash
         in: path
-        name: id
+        name: root
         required: true
         type: string
       responses:
@@ -57,9 +146,68 @@ paths:
         "500":
           description: Internal Server Error
       summary: Root import
+  /api/root/{root}/info:
+    get:
+      description: Get info about a specific path entry in a root
+      parameters:
+      - description: root hash or uuid
+        in: path
+        name: root
+        required: true
+        type: string
+      - description: path of file
+        in: query
+        items:
+          type: string
+        name: path
+        type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Root Info
+  /api/root/{root}/resp:
+    get:
+      description: Return the response from a request, including headers
+      parameters:
+      - description: root hash or uuid
+        in: path
+        name: root
+        required: true
+        type: string
+      - description: path of request
+        in: query
+        items:
+          type: string
+        name: path
+        required: true
+        type: array
+      - description: request hash
+        in: query
+        name: hash
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Root Response
   /api/token:
     post:
       description: returns a new uuid for recording a session
+      parameters:
+      - description: hash used to initialize the response cache
+        in: query
+        name: hash
+        type: string
       produces:
       - application/json
       responses:

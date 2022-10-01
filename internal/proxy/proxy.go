@@ -130,7 +130,6 @@ func (p *proxy) serveWithCache(w http.ResponseWriter, req *http.Request, root *s
 	//http://golang.org/src/pkg/net/http/client.go
 	req.RequestURI = ""
 
-	// TODO: strip query
 	delHopHeaders(req.Header)
 	reqStore, reqDo, err := p.filterReq(req)
 	if err != nil {
@@ -214,7 +213,11 @@ func (p *proxy) filterReq(req *http.Request) (*http.Request, *http.Request, erro
 	reqStrip := *req
 	reqIgnore := *req
 	reqStrip.Header = req.Header.Clone()
+	uStrip := *req.URL
+	reqStrip.URL = &uStrip
 	reqIgnore.Header = req.Header.Clone()
+	uIgnore := *req.URL
+	reqStrip.URL = &uIgnore
 	for _, f := range p.conf.Proxy.Filters {
 		if (f.Method == "" || f.Method == req.Method) &&
 			(f.URLPrefix == nil || (f.URLPrefix != nil &&
@@ -227,6 +230,18 @@ func (p *proxy) filterReq(req *http.Request) (*http.Request, *http.Request, erro
 					reqIgnore.Header.Del(header)
 				} else if action == config.ActionIgnore {
 					reqIgnore.Header.Del(header)
+				}
+			}
+			for key, action := range f.ReqQuery {
+				if action == config.ActionStrip {
+					qs := reqStrip.URL.Query()
+					qs.Del(key)
+					reqStrip.URL.RawQuery = qs.Encode()
+				}
+				if action == config.ActionIgnore || action == config.ActionStrip {
+					qi := reqIgnore.URL.Query()
+					qi.Del(key)
+					reqIgnore.URL.RawQuery = qi.Encode()
 				}
 			}
 		}

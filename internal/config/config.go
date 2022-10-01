@@ -61,7 +61,8 @@ type Proxy struct {
 	Filters []Filter `json:"filters"`
 }
 type Filter struct {
-	URLPrefix  *url.URL            `json:"urlPrefix"`
+	URLPrefixS string              `json:"urlPrefix"`
+	URLPrefix  *url.URL            `json:"-"`
 	Method     string              `json:"method"`
 	ReqHeader  map[string]cfAction `json:"reqHeader"`
 	RespHeader map[string]cfAction `json:"respHeader"`
@@ -119,6 +120,16 @@ func LoadReader(r io.Reader, c *Config) error {
 	err := json.NewDecoder(r).Decode(c)
 	if err != nil && !errors.Is(err, io.EOF) {
 		return err
+	}
+	// parse URLs
+	for i, filter := range c.Proxy.Filters {
+		if filter.URLPrefixS != "" {
+			u, err := url.Parse(filter.URLPrefixS)
+			if err != nil {
+				return err
+			}
+			c.Proxy.Filters[i].URLPrefix = u
+		}
 	}
 	return nil
 }

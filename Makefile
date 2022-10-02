@@ -60,13 +60,7 @@ swagger: $(GOPATH)/bin/swag .FORCE ## Update swagger docs
 vendor: ## Vendor Go modules
 	go mod vendor
 
-embed/version.json: .FORCE
-	# docker builds will not have the .dockerignore inside the container
-	if [ -f ".dockerignore" -o ! -f "embed/version.json" ]; then \
-		echo "{\"VCSRef\": \"$(VCS_REF)\", \"VCSTag\": \"$(VCS_TAG)\"}" >embed/version.json; \
-	fi
-
-binaries: vendor embed/version.json $(BINARIES) ## Build Go binaries
+binaries: vendor $(BINARIES) ## Build Go binaries
 
 bin/httplock: .FORCE
 	CGO_ENABLED=0 go build ${GO_BUILD_FLAGS} -o bin/httplock .
@@ -82,7 +76,7 @@ ui: .FORCE ## Build the UI files
 
 docker: $(IMAGES) ## Build the docker image
 
-docker-httplock: embed/version.json .FORCE
+docker-httplock: .FORCE
 	docker build -t httplock/httplock -f Dockerfile$(DOCKERFILE_EXT) $(DOCKER_ARGS) .
 	docker build -t httplock/httplock:alpine -f Dockerfile$(DOCKERFILE_EXT) --target release-alpine $(DOCKER_ARGS) .
 

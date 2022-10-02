@@ -15,6 +15,7 @@ var (
 var rootOpts struct {
 	verbosity string
 	confFile  string
+	format    string // for Go template formatting of various commands
 }
 
 var rootCmd = &cobra.Command{

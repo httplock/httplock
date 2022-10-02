@@ -2,4 +2,3 @@ artifacts/
 bin/
 vendor/
 local-test/
-embed/version.json

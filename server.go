@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/httplock/httplock/internal/api"
 	"github.com/httplock/httplock/internal/cert"
@@ -85,8 +86,10 @@ func runServer(cmd *cobra.Command, args []string) error {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	<-sig
-	proxySvc.Shutdown(ctx)
-	apiSvc.Shutdown(ctx)
+	ctxShutdown, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	proxySvc.Shutdown(ctxShutdown)
+	apiSvc.Shutdown(ctxShutdown)
 
 	// update index files
 	err = s.Flush()

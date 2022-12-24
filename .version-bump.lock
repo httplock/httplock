@@ -1,0 +1,10 @@
+{"name":"gha-uses","key":"actions/checkout","version":"v3"}
+{"name":"gha-uses","key":"actions/setup-go","version":"v3"}
+{"name":"gha-uses","key":"actions/upload-artifact","version":"v3"}
+{"name":"gha-uses","key":"docker/build-push-action","version":"v3"}
+{"name":"gha-uses","key":"docker/login-action","version":"v2"}
+{"name":"gha-uses","key":"docker/setup-buildx-action","version":"v2"}
+{"name":"gha-uses","key":"softprops/action-gh-release","version":"v1"}
+{"name":"registry-digest-arg","key":"alpine:3","version":"sha256:8914eb54f968791faf6a8638949e480fef81e697984fba772b3976835194c6d4"}
+{"name":"registry-digest-arg","key":"golang:1.19-alpine","version":"sha256:a9b24b67dc83b3383d22a14941c2b2b2ca6a103d805cac6820fd1355943beaf1"}
+{"name":"registry-digest-arg","key":"node:18-alpine","version":"sha256:a136ed7b0df71082cdb171f36d640ea3b392a5c70401c642326acee767b8c540"}

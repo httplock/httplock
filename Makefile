@@ -23,6 +23,14 @@ ifeq "$(strip $(NPM))" ''
 		-u "$(shell id -u):$(shell id -g)" \
 		$(NPM_CONTAINER) npm
 endif
+VER_BUMP?=$(shell command -v version-bump 2>/dev/null)
+VER_BUMP_CONTAINER?=sudobmitch/version-bump:edge
+ifeq "$(strip $(VER_BUMP))" ''
+	VER_BUMP=docker run --rm \
+		-v "$(shell pwd)/:$(shell pwd)/" -w "$(shell pwd)" \
+		-u "$(shell id -u):$(shell id -g)" \
+		$(VER_BUMP_CONTAINER)
+endif
 
 .PHONY: all fmt vet test vendor binaries ui docker artifacts artifact-pre .FORCE
 
@@ -100,6 +108,12 @@ artifacts/httplock-%: artifact-pre .FORCE
 	echo export GOARCH=$${GOARCH}; \
 	echo go build ${GO_BUILD_FLAGS} -o "$@" .; \
 	CGO_ENABLED=0 go build ${GO_BUILD_FLAGS} -o "$@" .
+
+util-version-check:
+	$(VER_BUMP) check
+
+util-version-update:
+	$(VER_BUMP) update
 
 $(GOPATH)/bin/staticcheck: 
 	go install "honnef.co/go/tools/cmd/staticcheck@latest"

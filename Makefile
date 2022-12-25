@@ -47,11 +47,6 @@ vet: ## go vet
 test: ## Run unit tests
 	go test ./...
 
-go-update: ## Update go dependencies
-	go get -u
-	go mod tidy
-	go mod vendor
-
 lint: lint-go lint-md ## Run all linting
 
 lint-go: $(GOPATH)/bin/staticcheck .FORCE ## Run linting for Go
@@ -75,9 +70,6 @@ bin/httplock: .FORCE
 
 npm-install: .FORCE ## Install NPM tooling for UI
 	cd ui/files && $(NPM) install --production
-
-npm-update: .FORCE ## Update NPM dependencies
-	cd ui/files && $(NPM) update
 
 ui: .FORCE ## Build the UI files
 	cd ui/files; $(NPM) run build
@@ -109,10 +101,18 @@ artifacts/httplock-%: artifact-pre .FORCE
 	echo go build ${GO_BUILD_FLAGS} -o "$@" .; \
 	CGO_ENABLED=0 go build ${GO_BUILD_FLAGS} -o "$@" .
 
-util-version-check:
+util-go-update: ## Update go dependencies
+	go get -u
+	go mod tidy
+	go mod vendor
+
+util-npm-update: .FORCE ## Update NPM dependencies
+	cd ui/files && $(NPM) update
+
+util-version-check: ## check for upstream version changes
 	$(VER_BUMP) check
 
-util-version-update:
+util-version-update: ## update upstream dependencies
 	$(VER_BUMP) update
 
 $(GOPATH)/bin/staticcheck: 

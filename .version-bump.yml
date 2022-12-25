@@ -1,0 +1,48 @@
+files:
+  "Dockerfile*":
+    scans:
+      - docker-arg-alpine
+      - docker-arg-go
+      - docker-arg-node
+  ".github/workflows/*.yml":
+    scans:
+      - gha-uses
+
+scans:
+  docker-arg-alpine:
+    type: "regexp"
+    source: "registry-digest-arg"
+    args:
+      regexp: '^ARG ALPINE_VER=(?P<Tag>[a-z0-9\-\.]+)@(?P<Version>sha256:[0-9a-f]+)\s*$'
+      image: "alpine"
+  docker-arg-go:
+    type: "regexp"
+    source: "registry-digest-arg"
+    args:
+      regexp: '^ARG GO_VER=(?P<Tag>[a-z0-9\-\.]+)@(?P<Version>sha256:[0-9a-f]+)\s*$'
+      image: "golang"
+  docker-arg-node:
+    type: "regexp"
+    source: "registry-digest-arg"
+    args:
+      regexp: '^ARG NODE_VER=(?P<Tag>[a-z0-9\-\.]+)@(?P<Version>sha256:[0-9a-f]+)\s*$'
+      image: "node"
+  gha-uses:
+    type: "regexp"
+    source: "gha-uses"
+    args:
+      regexp: '^\s+-?\s+uses: (?P<Repo>[^@]+)@(?P<Version>v\d+)\s*$'
+
+sources:
+  registry-digest-arg:
+    type: "registry"
+    key: "{{ .ScanArgs.image }}:{{.ScanMatch.Tag}}"
+    args:
+      image: "{{ .ScanArgs.image }}:{{.ScanMatch.Tag}}"
+  gha-uses:
+    type: "git"
+    key: "{{ .ScanMatch.Repo }}"
+    args:
+      type: "tag"
+      url: "https://github.com/{{ .ScanMatch.Repo }}.git"
+      tagExp: 'v\d+$'

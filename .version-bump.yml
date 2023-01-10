@@ -45,4 +45,5 @@ sources:
     args:
       type: "tag"
       url: "https://github.com/{{ .ScanMatch.Repo }}.git"
-      tagExp: 'v\d+$'
+    filter:
+      expr: '^v\d+$'
